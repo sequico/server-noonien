@@ -7,6 +7,13 @@
     "url": "https://github.com/sequico/server-noonien",
     "source": "github"
   },
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/sequico/server-noonien/main/assets/icon.png",
+      "mimeType": "image/png",
+      "sizes": ["512x512"]
+    }
+  ],
   "version": "1.0.1",
   "packages": [
     {

@@ -101,6 +101,9 @@ tool surface:
 **Hosted** is a category, not a product: it covers services that host your memory for you.
 `server-noonien` is the local-first opposite — you own the storage and there is no account.
 
+**A shared area is required** for the `file`/`s3` backends — a folder or an object store every node
+can reach. `nooniend` removes that requirement: it replicates the shards directly between nodes.
+
 ## The three commands
 
 One npm package, **`server-noonien`**, ships **three commands** (Node.js **≥ 22**). Install it once

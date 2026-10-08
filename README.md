@@ -23,6 +23,7 @@ reachability over a VPN or a LAN.
 - [Why server-noonien](#why-server-noonien)
   - [The problem](#the-problem)
   - [How server-noonien solves it](#how-server-noonien-solves-it)
+- [Comparison](#comparison)
 - [The three commands](#the-three-commands)
 - [Share across machines](#share-across-machines)
   - [Peer to peer — `nooniend` (recommended)](#peer-to-peer--nooniend-recommended)
@@ -79,6 +80,26 @@ tool surface:
   a full local replica, so it keeps working offline; the mesh reconverges when the network returns.
 - **Drop-in for the official server.** The same nine tools, inputs and outputs, so it slots under
   the `memory` server name with no agent changes.
+
+## Comparison
+
+`server-noonien` vs the official memory server vs hosted memory services:
+
+| | `server-noonien` | Official `server-memory` | Hosted memory services |
+| --- | --- | --- | --- |
+| Multi-machine | Yes — per-node shards, one graph | No — one local file | Yes, via the service |
+| Sharing a synced folder | Safe — append-only, conflict-free | Unsafe — whole-file read-modify-write | N/A |
+| Needs a server / database | No | No | Yes |
+| Needs a cloud account | No | No | Yes |
+| Works offline | Yes (`file` backend) | Yes | No |
+| Storage | Folder or S3-compatible bucket, your choice | One JSONL file | Their cloud |
+| Drop-in for the official tools | Yes — same nine tools | — | No |
+| Migration | `noonien import memory.jsonl` | — | Export/import dance |
+| Model | Explicit knowledge graph | Explicit knowledge graph | Often vector/semantic |
+| License | MPL-2.0 | MIT | Proprietary |
+
+**Hosted** is a category, not a product: it covers services that host your memory for you.
+`server-noonien` is the local-first opposite — you own the storage and there is no account.
 
 ## The three commands
 

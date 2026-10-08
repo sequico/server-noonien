@@ -135,3 +135,36 @@ jobs:
       # `npm publish` runs prepublishOnly (the full gate) and prepack (build); access
       # and provenance come from `publishConfig`, so no flag can drift here.
       - run: npm publish
+
+  registry:
+    name: publish to the MCP Registry
+    needs: [release, publish]
+    if: needs.release.outputs.release_created == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    # OIDC only: the registry authenticates the workflow identity, so no stored secret.
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.release.outputs.tag_name }}
+          persist-credentials: false
+      # server.json carries the released version; pin it to the published tag so a
+      # manual bump cannot drift from the registry entry.
+      - name: Pin server.json to the released version
+        env:
+          TAG: ${{ needs.release.outputs.tag_name }}
+        run: |
+          version=${TAG#v}
+          jq --arg v "$version" '.version = $v | .packages[].version = $v' server.json > server.tmp
+          mv server.tmp server.json
+      # Always the latest release: an older mcp-publisher is rejected ("invalid audience").
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+      - name: Publish to the MCP Registry
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish

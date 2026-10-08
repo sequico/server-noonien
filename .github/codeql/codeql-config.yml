@@ -1,0 +1,10 @@
+name: "server-noonien CodeQL config"
+
+# Scan the shipped code only. The test suite is not distributed, and its
+# fixtures live in `mkdtemp` directories under the OS temp dir, which trips
+# path-based queries such as js/insecure-temporary-file without a real finding.
+paths-ignore:
+  - test/**
+
+queries:
+  - uses: security-extended

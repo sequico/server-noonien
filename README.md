@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/icon.png" width="112" alt="server-noonien"></p>
+
 # server-noonien
 
 [![CI](https://github.com/sequico/server-noonien/actions/workflows/ci.yml/badge.svg)](https://github.com/sequico/server-noonien/actions/workflows/ci.yml)

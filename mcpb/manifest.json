@@ -1,0 +1,62 @@
+{
+  "manifest_version": "0.3",
+  "name": "server-noonien",
+  "display_name": "server-noonien",
+  "icon": "icon.png",
+  "version": "1.0.1",
+  "description": "Shared, serverless, conflict-free memory for AI agents — a multi-machine drop-in for the MCP memory knowledge graph.",
+  "long_description": "A drop-in replacement for the official `@modelcontextprotocol/server-memory` knowledge graph (the same nine tools) that **converges across machines** with no central server, no database and no merge conflicts. Each node keeps its own append-only shard; a companion daemon (`nooniend`) replicates the shards peer-to-peer, so several machines share one memory with no shared folder — only IP reachability over a VPN or a LAN.",
+  "author": {
+    "name": "Sequi Company",
+    "url": "https://sequi.company"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sequico/server-noonien.git"
+  },
+  "homepage": "https://github.com/sequico/server-noonien",
+  "support": "https://github.com/sequico/server-noonien/issues",
+  "license": "MPL-2.0",
+  "keywords": [
+    "mcp",
+    "memory",
+    "knowledge-graph",
+    "crdt",
+    "local-first",
+    "agents",
+    "multi-machine"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "server/dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/dist/index.js"],
+      "env": {
+        "NOONIEN_DIR": "${user_config.directory}",
+        "NOONIEN_NODE_ID": "${user_config.node_id}"
+      }
+    }
+  },
+  "user_config": {
+    "directory": {
+      "type": "directory",
+      "title": "Shard directory",
+      "description": "Directory holding this machine's shards. Leave empty for the default (~/.noonien).",
+      "required": false
+    },
+    "node_id": {
+      "type": "string",
+      "title": "Node id",
+      "description": "This node's shard name. Must be unique per machine. Leave empty to use the hostname.",
+      "required": false
+    }
+  },
+  "tools_generated": true,
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=22"
+    }
+  }
+}

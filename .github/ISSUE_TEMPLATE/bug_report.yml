@@ -1,0 +1,63 @@
+name: Bug report
+description: Report something that does not work as documented
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please do not include secrets or private data.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: A minimal example, the exact command and its output.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: server-noonien version
+      placeholder: 0.8.0
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      placeholder: v24.21.0
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Debian 13 / macOS 15 / Windows 11
+    validations:
+      required: true
+  - type: dropdown
+    id: setup
+    attributes:
+      label: Sync setup
+      description: How shards reach the other machines, if at all.
+      options:
+        - file (single machine)
+        - file + nooniend
+        - s3
+        - memory
+    validations:
+      required: true
+  - type: textarea
+    id: shard
+    attributes:
+      label: Relevant shard content
+      description: The offending shard lines, with secrets removed.
+      render: text
+    validations:
+      required: false

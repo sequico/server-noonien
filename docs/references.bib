@@ -1,0 +1,235 @@
+% Bibliography for docs/paper.md.
+% The paper cites author–year in the text (readable on GitHub and in the PDF); pandoc turns these
+% entries into the reference list. Render with:
+%   pandoc docs/paper.md --citeproc --bibliography=docs/references.bib --metadata-file=docs/paper.meta.yaml -o paper.pdf
+
+% --- CRDTs, clocks, gossip --------------------------------------------------
+
+@inproceedings{shapiro2011crdt,
+  author    = {Shapiro, Marc and Pregui{\c{c}}a, Nuno and Baquero, Carlos and Zawirski, Marek},
+  title     = {Conflict-free Replicated Data Types},
+  booktitle = {Stabilization, Safety, and Security of Distributed Systems (SSS 2011)},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {6976},
+  pages     = {386--400},
+  year      = {2011},
+  publisher = {Springer},
+  doi       = {10.1007/978-3-642-24550-3_29}
+}
+
+@inproceedings{kulkarni2014hlc,
+  author    = {Kulkarni, Sandeep S. and Demirbas, Murat and Madappa, Deepak and Avva, Bharadwaj and Leone, Marcelo},
+  title     = {Logical Physical Clocks and Consistent Snapshots in Globally Distributed Databases},
+  booktitle = {Principles of Distributed Systems (OPODIS 2014)},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {8878},
+  pages     = {17--32},
+  year      = {2014},
+  publisher = {Springer},
+  doi       = {10.1007/978-3-319-14472-6_2}
+}
+
+@article{lamport1978time,
+  author  = {Lamport, Leslie},
+  title   = {Time, Clocks, and the Ordering of Events in a Distributed System},
+  journal = {Communications of the ACM},
+  volume  = {21},
+  number  = {7},
+  pages   = {558--565},
+  year    = {1978},
+  doi     = {10.1145/359545.359563}
+}
+
+@inproceedings{demers1987epidemic,
+  author    = {Demers, Alan and Greene, Dan and Hauser, Carl and Irish, Wes and Larson, John and Shenker, Scott and Sturgis, Howard and Swinehart, Dan and Terry, Doug},
+  title     = {Epidemic Algorithms for Replicated Database Maintenance},
+  booktitle = {Proceedings of the Sixth Annual ACM Symposium on Principles of Distributed Computing (PODC 1987)},
+  pages     = {1--12},
+  year      = {1987},
+  doi       = {10.1145/41840.41841}
+}
+
+@inproceedings{decandia2007dynamo,
+  author    = {DeCandia, Giuseppe and Hastorun, Deniz and Jampani, Madan and Kakulapati, Gunavardhan and Lakshman, Avinash and Pilchin, Alex and Sivasubramanian, Swaminathan and Vosshall, Peter and Vogels, Werner},
+  title     = {Dynamo: Amazon's Highly Available Key-value Store},
+  booktitle = {Proceedings of the 21st ACM Symposium on Operating Systems Principles (SOSP 2007)},
+  pages     = {205--220},
+  year      = {2007},
+  doi       = {10.1145/1294261.1294281}
+}
+
+@article{birman1991lightweight,
+  author  = {Birman, Kenneth and Schiper, Andr{\'e} and Stephenson, Pat},
+  title   = {Lightweight Causal and Atomic Group Multicast},
+  journal = {ACM Transactions on Computer Systems},
+  volume  = {9},
+  number  = {3},
+  pages   = {272--314},
+  year    = {1991},
+  doi     = {10.1145/128738.128742}
+}
+
+@inproceedings{baquero2014making,
+  author    = {Baquero, Carlos and Almeida, Paulo S{\'e}rgio and Shoker, Ali},
+  title     = {Making Operation-based CRDTs Operation-based},
+  booktitle = {Distributed Applications and Interoperable Systems (DAIS 2014)},
+  pages     = {126--140},
+  year      = {2014},
+  doi       = {10.1007/978-3-662-43352-2_11}
+}
+
+% Peer-knowledge mechanisms for causal stability: they *compute* what a peer
+% knows (per message, or per key/dot) but answer the same stability question.
+
+@inproceedings{wuu1984efficient,
+  author    = {Wuu, Gene T. J. and Bernstein, Arthur J.},
+  title     = {Efficient Solutions to the Replicated Log and Dictionary Problems},
+  booktitle = {Proceedings of the Third Annual ACM Symposium on Principles of Distributed Computing (PODC 1984)},
+  pages     = {233--242},
+  year      = {1984},
+  doi       = {10.1145/800222.806750}
+}
+
+@inproceedings{demers1994bayou,
+  author    = {Demers, Alan and Petersen, Karin and Spreitzer, Mike and Terry, Douglas and Theimer, Marvin and Welch, Brent},
+  title     = {The Bayou Architecture: Support for Data Sharing among Mobile Users},
+  booktitle = {Proceedings of the Workshop on Mobile Computing Systems and Applications (WMCSA 1994)},
+  pages     = {2--7},
+  year      = {1994},
+  doi       = {10.1109/MWSCS.1994.390028}
+}
+
+@techreport{preguica2010dvv,
+  author      = {Pregui{\c{c}}a, Nuno and Baquero, Carlos and Almeida, Paulo S{\'e}rgio and Fonte, Victor and Gon{\c{c}}alves, Ricardo},
+  title       = {Dotted Version Vectors: Logical Clocks for Optimistic Replication},
+  institution = {arXiv},
+  number      = {arXiv:1011.5808},
+  year        = {2010}
+}
+
+@inproceedings{nicolaescu2016yjs,
+  author    = {Nicolaescu, Petru and Jahns, Kevin and Derntl, Michael and Klamma, Ralf},
+  title     = {Near Real-Time Peer-to-Peer Shared Editing on Extensible Data Types},
+  booktitle = {Proceedings of the 19th International Conference on Supporting Group Work (GROUP 2016)},
+  pages     = {39--49},
+  year      = {2016},
+  doi       = {10.1145/2957276.2957310}
+}
+
+@article{almeida2018delta,
+  author  = {Almeida, Paulo S{\'e}rgio and Shoker, Ali and Baquero, Carlos},
+  title   = {Delta State Replicated Data Types},
+  journal = {Journal of Parallel and Distributed Computing},
+  volume  = {111},
+  pages   = {162--173},
+  year    = {2018},
+  doi     = {10.1016/j.jpdc.2017.08.003}
+}
+
+@article{kleppmann2017json,
+  author  = {Kleppmann, Martin and Beresford, Alastair R.},
+  title   = {A Conflict-Free Replicated JSON Datatype},
+  journal = {IEEE Transactions on Parallel and Distributed Systems},
+  volume  = {28},
+  number  = {10},
+  pages   = {2733--2746},
+  year    = {2017},
+  doi     = {10.1109/TPDS.2017.2697382}
+}
+
+@inproceedings{kleppmann2022byzantine,
+  author    = {Kleppmann, Martin},
+  title     = {Making CRDTs Byzantine Fault Tolerant},
+  booktitle = {Proceedings of the 9th Workshop on Principles and Practice of Consistency for Distributed Data (PaPoC 2022)},
+  pages     = {8--15},
+  year      = {2022},
+  doi       = {10.1145/3517209.3524042}
+}
+
+% --- Deletion: grace-based reclamation and its failure modes -----------------
+
+@misc{cassandraTombstones,
+  author       = {{Apache Cassandra}},
+  title        = {Tombstones and \texttt{gc\_grace\_seconds}},
+  howpublished = {\url{https://cassandra.apache.org/doc/latest/cassandra/managing/operating/compaction/tombstones.html}},
+  year         = {2026},
+  note         = {Accessed 2026-10-08}
+}
+
+@misc{kafkaCompaction,
+  author       = {{Apache Kafka}},
+  title        = {Log compaction and \texttt{delete.retention.ms}},
+  howpublished = {\url{https://docs.confluent.io/kafka/design/log_compaction.html}},
+  year         = {2026},
+  note         = {Accessed 2026-10-08}
+}
+
+@misc{gitGc,
+  author       = {{Git project}},
+  title        = {git-gc: Cleanup Unnecessary Files and Optimize the Local Repository},
+  howpublished = {\url{https://git-scm.com/docs/git-gc}},
+  year         = {2026},
+  note         = {Prune expiry; accessed 2026-10-08}
+}
+
+% --- Agent memory (2025--2026) ---------------------------------------------
+
+@article{khan2025gossip,
+  author  = {Khan, Nafiul I. and Habiba, Mansura and Khan, Rafflesia},
+  title   = {A Gossip-Enhanced Communication Substrate for Agentic AI: Toward Decentralized Coordination in Large-Scale Multi-Agent Systems},
+  journal = {arXiv preprint arXiv:2512.03285},
+  year    = {2025}
+}
+
+@article{margalit2026governed,
+  author  = {Margalit, Yanki and Cohen-Inger, Nurit and Avram, Erni and Taig, Ran and Margalit, Oded},
+  title   = {Governed Shared Memory for Multi-Agent LLM Systems},
+  journal = {arXiv preprint arXiv:2606.24535},
+  year    = {2026}
+}
+
+@article{yu2026architecture,
+  author  = {Yu, Zhongming and Yu, Naicheng and Zhang, Hejia and Ni, Wentao and Yin, Mingrui and Yang, Jiaying and Zhao, Yujie and Zhao, Jishen},
+  title   = {Multi-Agent Memory from a Computer Architecture Perspective: Visions and Challenges Ahead},
+  journal = {arXiv preprint arXiv:2603.10062},
+  year    = {2026}
+}
+
+@article{du2026memory,
+  author  = {Du, Pengfei},
+  title   = {Memory for Autonomous LLM Agents: Mechanisms, Evaluation, and Emerging Frontiers},
+  journal = {arXiv preprint arXiv:2603.07670},
+  year    = {2026}
+}
+
+@article{cho2026agentroom,
+  author  = {Cho, Seonglae and Lee, Donghyun},
+  title   = {AgentRoom: Concurrent Multi-Agent Coding in a CRDT-Backed Shared Workspace},
+  journal = {arXiv preprint arXiv:2608.23740},
+  year    = {2026}
+}
+
+@article{bhardwaj2026superlocalmemory,
+  author  = {Bhardwaj, Varun Pratap and Singh, Garima and Bhardwaj, Arun Pratap},
+  title   = {SuperLocalMemory 4.0: The Governed Memory Operating System for AI Agents},
+  journal = {arXiv preprint arXiv:2608.08253},
+  year    = {2026}
+}
+
+% --- Platform, integration and the artifact ---------------------------------
+
+@misc{mcpMemoryServer,
+  author       = {{Model Context Protocol}},
+  title        = {Reference memory server (\texttt{@modelcontextprotocol/server-memory})},
+  howpublished = {\url{https://github.com/modelcontextprotocol/servers/tree/main/src/memory}},
+  year         = {2026},
+  note         = {Accessed 2026-10-08}
+}
+
+@misc{noonien,
+  author       = {{Sequi Company}},
+  title        = {server-noonien: shared, serverless, conflict-free memory for AI agents},
+  howpublished = {\url{https://github.com/sequico/server-noonien}},
+  year         = {2026},
+  note         = {Version 1.0.0; accessed 2026-10-08}
+}

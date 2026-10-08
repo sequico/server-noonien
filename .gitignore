@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Test / coverage
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Packed artifacts (a local `npm pack` leaves these behind)
+*.tgz
+files.txt
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Environment
+.env
+.env.*
+!.env.example

@@ -1,0 +1,15 @@
+{
+  "extends": ["@tsconfig/strictest/tsconfig.json", "@tsconfig/node24/tsconfig.json"],
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "outDir": "dist",
+    "types": ["node"],
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "erasableSyntaxOnly": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

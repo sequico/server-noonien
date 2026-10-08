@@ -1,0 +1,71 @@
+{
+  "name": "server-noonien",
+  "version": "1.0.0",
+  "description": "Shared, serverless, conflict-free memory for AI agents — a multi-machine drop-in for the MCP memory knowledge graph.",
+  "license": "MPL-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "npm@12.2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sequico/server-noonien.git"
+  },
+  "homepage": "https://github.com/sequico/server-noonien#readme",
+  "bugs": {
+    "url": "https://github.com/sequico/server-noonien/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "memory",
+    "knowledge-graph",
+    "crdt",
+    "local-first",
+    "agents",
+    "opencode"
+  ],
+  "author": "Sequi Company (https://sequi.company)",
+  "funding": "https://github.com/sponsors/sequico",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "bin": {
+    "noonien": "dist/noonien.js",
+    "server-noonien": "dist/index.js",
+    "nooniend": "dist/gossip.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "biome check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "gate": "npm run check && npm run typecheck && npm run test && npm run build",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run gate"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.3.1",
+    "zod": "^4.6.5"
+  },
+  "optionalDependencies": {
+    "@aws-sdk/client-s3": "^3.1146.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@tsconfig/node24": "^24.0.5",
+    "@tsconfig/strictest": "^2.0.8",
+    "@types/node": "^24.0.0",
+    "fast-check": "^4.10.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

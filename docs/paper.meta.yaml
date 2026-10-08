@@ -1,0 +1,11 @@
+# Pandoc metadata for docs/paper.md.
+#
+# The paper cites author-year in the text, so the citations read the same on GitHub and in the PDF.
+# This file makes pandoc emit the reference list from docs/references.bib (`nocite: "@*"`: every
+# entry, cited or not -- the list is the bibliography).
+#
+# Render with:
+#   pandoc docs/paper.md --citeproc --bibliography=docs/references.bib --metadata-file=docs/paper.meta.yaml -o paper.pdf
+
+nocite: "@*"
+license: "CC BY 4.0"

@@ -1,0 +1,137 @@
+name: Release
+
+# One trigger releases everything. Running this workflow (workflow_dispatch) opens or
+# refreshes the Release PR, gates it, merges it, creates the version tag and the GitHub
+# Release, and publishes to npm with provenance. Ordinary pushes to main run only CI
+# (ci.yml): this workflow is NOT triggered by a push.
+#
+# The merge runs inside this same run on purpose: a merge made with the workflow's
+# GITHUB_TOKEN does not trigger another workflow run, so release-please is invoked a
+# second time after the merge to create the tag and the release.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: write # create the version tag and the GitHub Release
+      issues: write # release-please labels the Release PR as it opens/updates it
+      pull-requests: write # open and merge the Release PR
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created || steps.open.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name || steps.open.outputs.tag_name }}
+    steps:
+      # Opens or refreshes the Release PR. When there is nothing to release, no PR is
+      # created and the steps that need one are skipped.
+      - name: Open or refresh the Release PR
+        id: open
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          target-branch: main
+      # A release that does not pass the gate must never be merged: check out the
+      # Release PR head and run the full gate first. The merge is what lands the version
+      # bump on main, so gating here keeps a broken bump off main and keeps
+      # release-please from ever tagging a tree that fails (no orphan tag/Release).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: ${{ steps.open.outputs.prs_created == 'true' }}
+        with:
+          ref: ${{ fromJSON(steps.open.outputs.pr).headBranchName }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        if: ${{ steps.open.outputs.prs_created == 'true' }}
+        with:
+          node-version-file: .nvmrc
+          # A publishing chain: never cache, so a poisoned cache cannot reach the tag.
+          package-manager-cache: false
+      - name: Gate the Release PR head
+        if: ${{ steps.open.outputs.prs_created == 'true' }}
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run gate
+      # The gate is green; merge the version bump. The branch is left in place: the
+      # release-please PR is the same branch every release, and deleting it in the same
+      # run makes the pull_request CI run fail to start ("workflow file issue").
+      - name: Merge the Release PR
+        if: ${{ steps.open.outputs.prs_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ steps.open.outputs.pr }}
+        run: |
+          number=$(echo "$PR" | jq -r '.number')
+          gh pr merge "$number" --squash
+          for _ in $(seq 1 30); do
+            [ "$(gh pr view "$number" --json state --jq '.state')" = "MERGED" ] && break
+            sleep 2
+          done
+      # The merge is on main and passes the gate; release-please tags the version and
+      # creates the GitHub Release. It runs even when no PR was created, so a re-run
+      # can create a release whose tag is still missing. Its outputs drive the publish
+      # job.
+      - name: Create the tag and the GitHub Release
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          target-branch: main
+
+  publish:
+    name: publish to npm
+    needs: release
+    if: needs.release.outputs.release_created == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    # The npm Trusted Publisher is bound to the environment name `npm`, so the OIDC
+    # token carries it. This environment has no required reviewers, so the publish
+    # needs no approval.
+    environment: npm
+    permissions:
+      contents: read # read the release tag's contents
+      id-token: write # npm Trusted Publishing: the OIDC token replaces an NPM_TOKEN secret
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.release.outputs.tag_name }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+          # No cache in a publishing job: a poisoned cache must never reach the
+          # package that is published (zizmor cache-poisoning).
+          package-manager-cache: false
+      # No install scripts: this job holds `id-token: write`, so a lifecycle script
+      # from a (transitive) dependency could mint the npm-publish OIDC token and
+      # publish on our behalf. The package's own build scripts still run: `npm pack`
+      # and `npm publish` below invoke `prepack`/`prepublishOnly` as usual.
+      - run: npm ci --ignore-scripts
+      # The published artifact is verified before it leaves: every `bin` declared in
+      # package.json must be in the packed tarball, so a release can never ship a
+      # broken package.
+      - name: Verify the packed bin entry points
+        run: |
+          npm pack
+          tarball=$(ls server-noonien-*.tgz)
+          tar -tzf "$tarball" > files.txt
+          grep -qx 'package/package.json' files.txt
+          for entry in $(jq -r '.bin[]' package.json); do
+            grep -qx "package/$entry" files.txt || {
+              echo "::error::the tarball is missing the bin target $entry"
+              exit 1
+            }
+          done
+      # `npm publish` runs prepublishOnly (the full gate) and prepack (build); access
+      # and provenance come from `publishConfig`, so no flag can drift here.
+      - run: npm publish

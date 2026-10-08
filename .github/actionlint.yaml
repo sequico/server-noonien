@@ -1,0 +1,6 @@
+# actionlint reads this to accept runner labels newer than its bundled list.
+# `ubuntu-26.04` is a real GitHub-hosted label; actionlint simply has not shipped
+# it yet, and reporting it as unknown would fail the workflow-lint job.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

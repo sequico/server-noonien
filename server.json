@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "io.github.sequico/server-noonien",
+  "description": "Shared, serverless, conflict-free knowledge-graph memory for AI agents",
+  "status": "active",
+  "repository": {
+    "url": "https://github.com/sequico/server-noonien",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registry_type": "npm",
+      "registry_base_url": "https://registry.npmjs.org",
+      "identifier": "server-noonien",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environment_variables": [
+        {
+          "name": "NOONIEN_DIR",
+          "description": "Directory holding this machine's shards (default ~/.noonien).",
+          "is_required": false,
+          "format": "string"
+        },
+        {
+          "name": "NOONIEN_NODE_ID",
+          "description": "This node's shard name (default the hostname). Must be unique per machine.",
+          "is_required": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

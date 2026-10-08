@@ -1,0 +1,24 @@
+server-noonien
+============
+
+Copyright © 2026 Sequi Company.
+
+Source code and documentation — Mozilla Public License 2.0
+---------------------------------------------------------
+All source code in this repository (`src/`, `test/` and the build configuration) and every
+document except the report — the documentation at the repository root (`README.md`, `PLAN.md`,
+`SCALING.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `AGENTS.md`) and the
+bibliography `docs/references.bib` — are licensed under the Mozilla Public License, version 2.0.
+The full text is in `LICENSE`, and every TypeScript file carries the MPL-2.0 notice.
+
+The report `docs/paper.md` — CC BY 4.0
+--------------------------------------
+The technical report `docs/paper.md` is Copyright © 2026 Sequi Company, licensed under the
+Creative Commons Attribution 4.0 International License (CC BY 4.0); the full text is in
+`docs/LICENSE`. You may share and adapt it for any purpose, including commercially, provided you
+give appropriate credit, link to the license, and indicate if changes were made.
+
+Trademarks
+----------
+"Star Trek", "Data", "Lore" and "Noonien Soong" are the property of their respective rights holders.
+This project is an independent fan homage, not affiliated with or endorsed by them.

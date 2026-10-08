@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # A pull request only needs the latest run; on main let a run finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# The Release PR is created and merged by the Release workflow with GITHUB_TOKEN and is
+# gated inside that workflow, so every job below skips its branch (a run that loads is
+# empty, never a phantom red one). The guard is repeated per job because a job `if` can
+# only read `github`, not a shared `env`.
+jobs:
+  gate:
+    name: gate (node ${{ matrix.node }})
+    if: "!startsWith(github.head_ref || '', 'release-please--')"
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      # The full supported range on main (engines: >=22, .nvmrc runs the LTS); a
+      # single LTS while reviewing a pull request.
+      matrix:
+        node: ${{ fromJSON(github.event_name == 'pull_request' && '["24"]' || '["22","24","26"]') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+      - name: Verify the packed tarball ships every bin entry point
+        run: |
+          npm pack
+          tarball=$(ls server-noonien-*.tgz)
+          tar -tzf "$tarball" > files.txt
+          grep -qx 'package/package.json' files.txt
+          # The bins in package.json are the source of truth for what must be present.
+          for entry in $(jq -r '.bin[]' package.json); do
+            grep -qx "package/$entry" files.txt
+          done
+
+  pr-title:
+    name: pr title
+    if: github.event_name == 'pull_request' && !startsWith(github.head_ref || '', 'release-please--')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # read the PR title and labels to lint them
+    steps:
+      # A squash merge takes the PR title as the commit on main, so it must be a
+      # Conventional Commit or release-please cannot version the change.
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  workflow-lint:
+    name: workflow lint
+    if: "!startsWith(github.head_ref || '', 'release-please--')"
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: write # publish the lint annotations on the PR's check run
+      pull-requests: read # read the changed workflow files
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: reviewdog/action-actionlint@1758727be30241166609dad4c97588b6ad411f32 # v1.79.1
+        with:
+          fail_level: error
+
+  workflow-security:
+    name: workflow security
+    if: "!startsWith(github.head_ref || '', 'release-please--')"
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          advanced-security: false
+          annotations: true
+
+  dependency-review:
+    name: dependency review
+    if: github.event_name == 'pull_request' && !startsWith(github.head_ref || '', 'release-please--')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write # post the dependency-review summary on the PR
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0

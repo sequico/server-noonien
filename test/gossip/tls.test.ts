@@ -206,7 +206,7 @@ describe("gossip mTLS", () => {
       await expect(
         rawRequest("GET", `https://${server.address}/info`, {
           ca: certificates.ca,
-          rejectUnauthorized: false,
+          rejectUnauthorized: true,
         }),
       ).rejects.toThrow()
     } finally {

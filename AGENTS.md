@@ -41,10 +41,11 @@ All repository content — code, identifiers, comments, docs and commit messages
   pass with zero errors, zero warnings, zero residual issues.
 - **Tests** — unit tests for logic, property tests for the CRDT. No `.skip`/`.only` committed.
 - **Types** — strict; no `any` without a written justification.
-- **Docs** — `README.md`/`PLAN.md` describe the current state only: no history, no changelog;
-  `CHANGELOG.md` is the one historical artifact, kept concise by hand (one line per release, the
-  pending change under `Unreleased`). `SCALING.md` is forward-looking, and the report in `docs/` is
-  frozen at the release it pins.
+- **Changelog** — `CHANGELOG.md` is the one historical artifact and is **maintained by hand with every
+  user-visible change**: one line per release, the pending change under `Unreleased`. release-please
+  writes the version, the tag and the GitHub Release, never this file.
+- **Docs** — `README.md`/`PLAN.md` describe the current state only: no history, no changelog.
+  `SCALING.md` is forward-looking, and the report in `docs/` is frozen at the release it pins.
 - Use the latest online documentation for libraries instead of relying on memory.
 
 ## Commands

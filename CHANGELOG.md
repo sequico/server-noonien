@@ -7,6 +7,11 @@ version and its date.
 
 [rp]: https://github.com/googleapis/release-please
 
+## Unreleased
+
+- Document the `nooniend` wire protocol in [`PROTOCOL.md`](PROTOCOL.md); the README's daemon API
+  section now points to it.
+
 ## 1.0.2 (2026-10-10)
 
 - Discovery: a peer joins the mesh only after its identity handshake, so a device that does not run

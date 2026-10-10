@@ -265,8 +265,8 @@ How it behaves:
   announces on the request (untrusted, like a gossiped entry, and confirmed by the next sync), so a
   statically-seeded joiner is discovered by the seeds it reached and its entry then spreads to the
   rest. A node's own entry is authoritative; an address that serves a different node is dropped.
-- **Wire and security.** A small HTTP/JSON service bound to `NOONIEND_LISTEN` (the full route list
-  is [below](#the-daemon-http-api)); a shard accepts only its own node's operations. mTLS with
+- **Wire and security.** A small HTTP/JSON service bound to `NOONIEND_LISTEN` (the full wire contract
+  is in [`PROTOCOL.md`](PROTOCOL.md)); a shard accepts only its own node's operations. mTLS with
   per-peer certificates: the certificate's **common name is the node id**, so a peer may only push
   the shard it authors, while reads stay open to any authenticated peer — which is what lets a node
   relay. `NOONIEND_REVOKED` refuses specific nodes on every route; `NOONIEND_DEPARTED`
@@ -296,30 +296,9 @@ WantedBy=default.target
 
 ### The daemon HTTP API
 
-`nooniend` serves a small HTTP/JSON API on `NOONIEND_LISTEN` (default `0.0.0.0:7878`). Every route
-is read-only except the operations push, whose body is capped at 64 MiB. Without TLS the routes are
-unauthenticated; with mTLS they all require a client certificate whose common name is the peer's
-node id, and a push is accepted only for the shard the certificate names.
-
-| Method | Path | Returns |
-| --- | --- | --- |
-| `GET` | `/health` | Liveness: `{"status":"ok"}`. |
-| `GET` | `/info` | This node's entry (`node`, `address`, `version`), the protocol revision and the advertised capabilities (`digest`). |
-| `GET` | `/peers` | The peer set with each peer's live health: `{"peers":[{"node","address","version","health"}]}`, `health` one of `alive`, `suspect`, `dead`. |
-| `GET` | `/membership` | The peer set without health — the payload nodes gossip. |
-| `GET` | `/status` | One-glance summary: `{"node","version","protocol","uptimeSec","shards","peers":{"total","alive","suspect","dead"}}`; the peer counts exclude the local node. |
-| `GET` | `/graph` | The whole knowledge graph `{"entities","relations"}`, folded from the replicas on disk. |
-| `GET` | `/shards` | Per-shard summaries: `{"shards":[{"node","count","maxSeq","generation"}]}`. |
-| `GET` | `/shards/digest` | The shard digest `{"root","buckets":[{"index","hash","count"}]}`; with `?buckets=1,3,5`, just those buckets' summaries as `{"shards":[…]}`. |
-| `GET` | `/shards/{node}/ops?after=N` | `{node}`'s operations after sequence `N`, as NDJSON. |
-| `POST` | `/shards/{node}/ops` | Append operations to `{node}`'s replica (NDJSON body); accepts only operations authored by `{node}`. |
-| `GET` | `/metrics` | Prometheus metrics. |
-| `GET` | `/watermark` | Per-shard stable high-water mark across the contactable peers. |
-
-The wire carries a protocol revision (`1`, in `/info` and `/status`): the first exchange validates
-it, and a peer that answers a different revision fails the exchange rather than being misread. A
-list (`/membership`, `/shards`) is capped at 10 000 entries and the shard digest at 16 buckets, so a
-single response cannot force unbounded state from a peer.
+`nooniend` serves a small HTTP/JSON API on `NOONIEND_LISTEN` (default `0.0.0.0:7878`). The full wire
+contract — routes and payloads, the operation format, the protocol revision and capabilities, the
+size limits and the mTLS model — is specified in [`PROTOCOL.md`](PROTOCOL.md).
 
 ```sh
 curl -s http://127.0.0.1:7878/health
@@ -740,6 +719,8 @@ them.*
 
 - [`PLAN.md`](PLAN.md) — architecture and design decisions.
 - [`SCALING.md`](SCALING.md) — the forward-looking plan for 1,000 / 10,000 nodes.
+- [`PROTOCOL.md`](PROTOCOL.md) — the `nooniend` wire protocol: transport, messages, limits and
+  security.
 - [`docs/paper.md`](docs/paper.md) — the technical report: the model, the tombstone-collection
   contribution and the evaluation, with the bibliography in
   [`docs/references.bib`](docs/references.bib) (frozen at release 1.0.0; the report is © Sequi

@@ -220,7 +220,7 @@ nooniend
 
 # or, with no self-listing underlay, seed one reachable peer
 NOONIEN_DIR=~/.noonien \
-NOONIEND_PEERS=ai.example:7878 \
+NOONIEND_PEERS=ai.example:27878 \
 nooniend
 ```
 
@@ -296,15 +296,15 @@ WantedBy=default.target
 
 ### The daemon HTTP API
 
-`nooniend` serves a small HTTP/JSON API on `NOONIEND_LISTEN` (default `0.0.0.0:7878`). The full wire
+`nooniend` serves a small HTTP/JSON API on `NOONIEND_LISTEN` (default `0.0.0.0:27878`). The full wire
 contract — routes and payloads, the operation format, the protocol revision and capabilities, the
 size limits and the mTLS model — is specified in [`PROTOCOL.md`](PROTOCOL.md).
 
 ```sh
-curl -s http://127.0.0.1:7878/health
-curl -s http://127.0.0.1:7878/status
-curl -s http://127.0.0.1:7878/peers
-curl -s http://127.0.0.1:7878/graph | jq '{entities: (.entities|length), relations: (.relations|length)}'
+curl -s http://127.0.0.1:27878/health
+curl -s http://127.0.0.1:27878/status
+curl -s http://127.0.0.1:27878/peers
+curl -s http://127.0.0.1:27878/graph | jq '{entities: (.entities|length), relations: (.relations|length)}'
 ```
 
 ### Shared area — `file` and `s3`
@@ -417,7 +417,7 @@ VPN or firewall and enable mTLS — see [Security](#security).
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `NOONIEND_LISTEN` | `0.0.0.0:7878` | `host:port` the gossip service binds. |
+| `NOONIEND_LISTEN` | `0.0.0.0:27878` | `host:port` the gossip service binds. |
 | `NOONIEND_ADVERTISE` | the listen host (hostname on a wildcard) | **Optional.** `host:port` this node advertises to peers; set it only when the default does not resolve from the others. |
 | `NOONIEND_PEERS` | — | **Discovery: static seeds** — `node@host:port` or `host:port`, comma separated. One is enough; membership then self-propagates. |
 | `NOONIEND_DNS_SRV` | — | **Discovery:** domain whose `_nooniend._tcp` SRV records are seeds. |

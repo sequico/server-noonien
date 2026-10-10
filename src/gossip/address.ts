@@ -57,7 +57,7 @@ function splitHostPort(value: string): [string, number | undefined] {
     return [host, bracketed[2] === undefined ? undefined : parsePort(bracketed[2], value)]
   }
   // An unbracketed IPv6 address has several colons; the whole value is the host
-  // and the port falls back. IPv6 with a port must be bracketed, e.g. `[::1]:7878`.
+  // and the port falls back. IPv6 with a port must be bracketed, e.g. `[::1]:27878`.
   if (value.split(":").length > 2) {
     return [value, undefined]
   }

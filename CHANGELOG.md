@@ -9,6 +9,8 @@ version and its date.
 
 ## Unreleased
 
+- Change the default `nooniend` listen port to `27878`, the IANA user port the service is being
+  registered for.
 - Document the `nooniend` wire protocol in [`PROTOCOL.md`](PROTOCOL.md); the README's daemon API
   section now points to it.
 

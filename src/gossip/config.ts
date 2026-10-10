@@ -7,8 +7,8 @@ import { loadConfig } from "../config.js"
 import { parseFlag, parseInteger } from "../env.js"
 import { formatHostPort, parseHostPort } from "./address.js"
 
-/** Default TCP port for the gossip service. */
-export const DEFAULT_GOSSIP_PORT = 7878
+/** Default TCP port for the gossip service (IANA user port, registration pending). */
+export const DEFAULT_GOSSIP_PORT = 27878
 
 /**
  * Default retention window: 180 days. Long enough that only a node genuinely gone is
@@ -91,7 +91,7 @@ export interface GossipConfig {
  * default): `memory` and `s3` are refused rather than silently replicating a local
  * folder the server never uses.
  *
- * - `NOONIEND_LISTEN` — `host:port` to bind, default `0.0.0.0:7878`.
+ * - `NOONIEND_LISTEN` — `host:port` to bind, default `0.0.0.0:27878`.
  * - `NOONIEND_ADVERTISE` — `host:port` this node advertises, default from
  *   the listen host (or the hostname when the bind is a wildcard).
  * - `NOONIEND_PEERS` — static seed list, `node@host:port` or `host:port`.

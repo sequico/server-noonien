@@ -286,7 +286,9 @@ are now — no history, no before/after, no changelog — and are revised alongs
   area); the `NOONIEN_*` and `NOONIEND_*` configuration tables; how the CRDT and compaction work;
   drop-in compatibility; security.
 - **PLAN.md** — this document: the architecture, the gossip design decisions and their rationale,
-  the tool surface, the CLI, distribution, testing and the current state.
+  the tool surface, the CLI, distribution, testing and the current state. Work that is explicitly
+  forward-looking is kept under a `## Planned:` heading, labelled as such and separate from the
+  current-state description.
 - **SCALING.md** — a forward-looking plan (not current state): the partial-replication model for
   1,000 / 10,000 nodes, built on the foundations listed there.
 
@@ -333,8 +335,9 @@ Deliberate non-goals:
 - **No mutation from the UI**, no dashboard route inside the daemon, and no framework in the runtime
   package.
 
-Open decisions: whether the UI ships in the npm package or stays repo-only, and whether it is
-hand-written zero-build or precompiled assets committed to `dist/`.
+Decisions taken: the UI ships **in the npm package**, opt-in — it is a subcommand of `noonien`, not
+a new bin, and runs only when invoked — and its assets are **hand-written with no build step** (HTML,
+ES modules and inline SVG; no bundler and no framework in the toolchain or the runtime).
 
 ## Current state
 

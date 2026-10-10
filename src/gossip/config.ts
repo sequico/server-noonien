@@ -17,6 +17,13 @@ export const DEFAULT_GOSSIP_PORT = 7878
  */
 const DEFAULT_FORGET_AFTER = 180 * 24 * 60 * 60
 
+/**
+ * Default discovery refresh: five minutes. Long enough that re-reading the discovery
+ * sources (an exec for Tailscale) stays rare, short enough that a node joining the
+ * network is found without a restart.
+ */
+const DEFAULT_DISCOVER_INTERVAL = 300
+
 export interface GossipTlsConfig {
   readonly cert: string
   readonly key: string
@@ -33,6 +40,12 @@ export interface GossipConfig {
   readonly staticPeers: string | undefined
   readonly dnsSrvDomain: string | undefined
   readonly tailscale: boolean
+  /**
+   * How often the discovery sources are re-read, in milliseconds. `0` reads them once
+   * at startup only. A refresh never drops a member: it adds new candidates, which are
+   * adopted on the identity handshake (see `Candidates`).
+   */
+  readonly discoverIntervalMs: number
   readonly intervalMs: number
   readonly suspectAfter: number
   readonly deadAfter: number
@@ -85,6 +98,9 @@ export interface GossipConfig {
  * - `NOONIEND_DNS_SRV` — domain whose `_nooniend._tcp` SRV records
  *   are the seeds.
  * - `NOONIEND_TAILSCALE` — discover seeds from `tailscale status`.
+ * - `NOONIEND_DISCOVER_INTERVAL` — seconds between discovery refreshes (default 300;
+ *   `0` reads the discovery sources once at startup). A refresh only adds candidates;
+ *   a candidate is adopted once it answers `/info`.
  * - `NOONIEND_INTERVAL` — anti-entropy period in seconds (default 30).
  * - `NOONIEND_SUSPECT_AFTER` / `_DEAD_AFTER` — failed exchanges that mark
  *   a peer suspect (3) and dead (6).
@@ -171,6 +187,7 @@ export function loadGossipConfig(env: NodeJS.ProcessEnv = process.env): GossipCo
     staticPeers: nonEmpty(env["NOONIEND_PEERS"]),
     dnsSrvDomain: nonEmpty(env["NOONIEND_DNS_SRV"]),
     tailscale: parseFlag(env["NOONIEND_TAILSCALE"], false, "NOONIEND_TAILSCALE"),
+    discoverIntervalMs: parseDiscoverInterval(env["NOONIEND_DISCOVER_INTERVAL"]),
     intervalMs: parseSeconds(env["NOONIEND_INTERVAL"], 30, "NOONIEND_INTERVAL"),
     suspectAfter,
     deadAfter,
@@ -242,6 +259,15 @@ function parseSeconds(value: string | undefined, fallback: number, name: string)
  */
 function parseWindow(value: string | undefined): number {
   return parseInteger(value, DEFAULT_FORGET_AFTER, "NOONIEND_FORGET_AFTER", 0) * 1000
+}
+
+/**
+ * Parse the discovery refresh interval, in seconds (`0` = read the sources once at
+ * startup). It is compared against elapsed milliseconds, not handed to a timer, so the
+ * timer-overflow guard above does not apply.
+ */
+function parseDiscoverInterval(value: string | undefined): number {
+  return parseInteger(value, DEFAULT_DISCOVER_INTERVAL, "NOONIEND_DISCOVER_INTERVAL", 0) * 1000
 }
 
 function nonEmpty(value: string | undefined): string | undefined {

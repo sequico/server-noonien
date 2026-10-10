@@ -220,6 +220,8 @@ nooniend
 The peers **find each other** — you never list the machines. Configure **one** discovery source:
 `NOONIEND_TAILSCALE` (from `tailscale status`), `NOONIEND_DNS_SRV` (the `_nooniend._tcp` SRV
 records), or `NOONIEND_PEERS` (a static seed; one is enough, membership then self-propagates).
+A discovery source returns **candidates**, not members: a candidate joins only once it answers
+`/info`, so a machine on the network that does not run `nooniend` is never adopted.
 `NOONIEND_ADVERTISE` is optional and defaults to the listen host.
 
 How it behaves:
@@ -241,8 +243,13 @@ How it behaves:
   plain list, so a mixed mesh never breaks.
 - **Relays.** A node serves every replica it holds, so an offline node keeps converging through any
   peer that has its shard.
-- **Discovery and membership.** Bootstrap adapters (Tailscale, DNS SRV, a static seed) return an
-  initial list; the peer set then gossips itself. Liveness comes from the exchange results — suspect
+- **Discovery and membership.** Bootstrap adapters (Tailscale, DNS SRV, a static seed) return
+  **candidates**; the peer set then gossips itself. A static `node@host:port` seed is explicit intent
+  and enters membership directly; a **bare address** (a Tailscale or DNS-SRV candidate) joins only
+  once it answers `/info`, and its id comes from that answer — never from the discovery source — so a
+  device that does not run `nooniend` is never a member and never blocks collection. A node that
+  comes up is adopted on its next probe, and the sources are re-read every
+  `NOONIEND_DISCOVER_INTERVAL` seconds, so a joiner is found without a restart. Liveness comes from the exchange results — suspect
   after `NOONIEND_SUSPECT_AFTER` failures, dead after `NOONIEND_DEAD_AFTER`, retried after
   `NOONIEND_DEAD_RETRY`, and forgotten after `NOONIEND_MEMBERSHIP_TTL`. A peer that reaches this
   node is marked alive — its certificate names it under mTLS, otherwise the id it announces on the
@@ -428,7 +435,8 @@ VPN or firewall and enable mTLS — see [Security](#security).
 | `NOONIEND_ADVERTISE` | the listen host (hostname on a wildcard) | **Optional.** `host:port` this node advertises to peers; set it only when the default does not resolve from the others. |
 | `NOONIEND_PEERS` | — | **Discovery: static seeds** — `node@host:port` or `host:port`, comma separated. One is enough; membership then self-propagates. |
 | `NOONIEND_DNS_SRV` | — | **Discovery:** domain whose `_nooniend._tcp` SRV records are seeds. |
-| `NOONIEND_TAILSCALE` | off | **Discovery:** derive seeds from `tailscale status`. |
+| `NOONIEND_TAILSCALE` | off | **Discovery:** derive candidate addresses from `tailscale status` (a peer joins once it answers `/info`). |
+| `NOONIEND_DISCOVER_INTERVAL` | `300` | Seconds between discovery refreshes; `0` reads the sources once at startup. A refresh only adds candidates. |
 | `NOONIEND_INTERVAL` | `30` | Anti-entropy period, seconds. |
 | `NOONIEND_PUSH` | on | Reconcile as soon as the local shard changes. |
 | `NOONIEND_FANOUT` | `0` | Peers contacted per round; `0` is every reachable peer. **A cap excludes `NOONIEND_GC`**: a reachable peer the round did not sample suspends collection, so the daemon refuses the two together. |

@@ -10,7 +10,7 @@ import { Metrics } from "../metrics.js"
 import { ShardLog } from "../store/log.js"
 import { isSafeNodeId, shardName } from "../sync/backend.js"
 import { FileBackend } from "../sync/file.js"
-import { collectSeeds } from "./bootstrap.js"
+import { Candidates, collectSeeds } from "./bootstrap.js"
 import {
   collectionGuard,
   exceedsLocal,
@@ -138,17 +138,35 @@ export async function startGossip(
   // that has not completed a round yet would be invisible, and either could collect while
   // it is about to replicate — the one window a knowledge file can close.
   await knowledge.save()
-  const seeds = await collectSeeds({
-    staticPeers: config.staticPeers,
-    dnsSrvDomain: config.dnsSrvDomain,
-    tailscale: config.tailscale,
-    port: config.listenPort,
-  })
-  for (const seed of seeds) {
-    if (seed.node !== undefined && seed.node !== config.nodeId) {
-      membership.seed([{ node: seed.node, address: seed.address, version: 0 }])
+  // Discovery proposes; membership disposes. A `node@host:port` static seed is
+  // operator intent and enters membership directly, while a bare address (a Tailscale
+  // or DNS-SRV candidate) is probed on `/info` and adopted only if it answers — its id
+  // comes from the answer, never from the discovery source. A device that does not run
+  // `nooniend` therefore never becomes a member and never blocks collection.
+  const candidates = new Candidates(config.intervalMs, config.deadRetryMs)
+  const addSeeds = (found: readonly Seed[]): void => {
+    const pending: string[] = []
+    for (const seed of found) {
+      if (seed.node === undefined) {
+        pending.push(seed.address)
+      } else if (seed.node !== config.nodeId) {
+        membership.seed([{ node: seed.node, address: seed.address, version: 0 }])
+      }
     }
+    candidates.add(pending)
   }
+  const discover = async (): Promise<void> => {
+    addSeeds(
+      await collectSeeds({
+        staticPeers: config.staticPeers,
+        dnsSrvDomain: config.dnsSrvDomain,
+        tailscale: config.tailscale,
+        port: config.listenPort,
+      }),
+    )
+  }
+  await discover()
+  let discoveredAt = Date.now()
 
   // Per-shard stable high-water mark: an operation at or below it has reached every
   // contactable peer. It is observability (the `/watermark` route) and a conservative
@@ -171,7 +189,6 @@ export async function startGossip(
     revoked: ignored,
   })
 
-  const resolvedSeeds = new Set<string>()
   let running = false
   let pending = false
   // The last triggered round, so `close` can let an in-flight write finish before
@@ -188,7 +205,12 @@ export async function startGossip(
     for (const node of config.departed) {
       knowledge.depart(node)
     }
-    await resolveSeeds(seeds, config.nodeId, membership, transportFor, resolvedSeeds)
+    const roundAt = Date.now()
+    if (config.discoverIntervalMs > 0 && roundAt - discoveredAt >= config.discoverIntervalMs) {
+      discoveredAt = roundAt
+      await discover()
+    }
+    await resolveSeeds(candidates, config.nodeId, membership, transportFor, roundAt)
     membership.prune()
     const peers = membership.contactable().filter((peer) => !ignored.has(peer.node))
     const sample = selectPeers(peers, config.fanout, random, config.relay)
@@ -627,27 +649,38 @@ function publishAbsence(input: CollectInput, retained: readonly string[]): void 
   )
 }
 
+/**
+ * Probe the candidates whose next attempt is due at `now`. A candidate that answers
+ * `/info` joins membership as an authoritative entry — its id comes from its own
+ * answer, not from the discovery source — and leaves the candidate set; one that does
+ * not answer is backed off. A candidate that never runs `nooniend` is therefore never a
+ * member and never blocks collection, while a node that comes up is adopted on its next
+ * due probe. Probes run in parallel, so an unreachable address does not delay the round.
+ */
 async function resolveSeeds(
-  seeds: readonly Seed[],
+  candidates: Candidates,
   selfNode: string,
   membership: Membership,
   transportFor: (address: string) => PeerTransport,
-  resolved: Set<string>,
+  now: number,
 ): Promise<void> {
-  for (const seed of seeds) {
-    if (seed.node !== undefined || resolved.has(seed.address)) {
-      continue
-    }
-    try {
-      const info = await transportFor(seed.address).info()
-      if (info.node !== selfNode) {
-        membership.merge([{ node: info.node, address: seed.address, version: info.version }], true)
-      }
-      resolved.add(seed.address)
-    } catch {
-      // An unreachable seed is retried on the next round; membership spreads.
-    }
+  const due = candidates.due(now)
+  if (due.length === 0) {
+    return
   }
+  await Promise.allSettled(
+    due.map(async (address) => {
+      try {
+        const info = await transportFor(address).info()
+        if (info.node !== selfNode) {
+          membership.merge([{ node: info.node, address, version: info.version }], true)
+        }
+        candidates.adopted(address)
+      } catch {
+        candidates.failed(address, now)
+      }
+    }),
+  )
 }
 
 function watchDirectory(

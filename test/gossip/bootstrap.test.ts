@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from "vitest"
 import {
+  Candidates,
   collectSeeds,
   parseSrvRecords,
   parseStaticPeers,
@@ -58,17 +59,19 @@ describe("parseSrvRecords", () => {
 })
 
 describe("parseTailscaleStatus", () => {
-  it("turns tailnet peers into node-qualified seeds", () => {
+  it("turns tailnet peers into address-only candidates", () => {
     const status = {
       Self: { HostName: "ai", TailscaleIPs: ["100.93.143.80"] },
       Peer: {
         a: { HostName: "z600", TailscaleIPs: ["100.91.199.87"] },
-        b: { HostName: "mail-greensley", TailscaleIPs: ["100.106.79.30"] },
+        b: { HostName: "phone", TailscaleIPs: ["100.106.79.30"] },
       },
     }
+    // The host name is not a trusted node id: the peer is adopted only once it answers
+    // `/info`, so a device that does not run `nooniend` is never given an entry.
     expect(parseTailscaleStatus(status, 7878)).toEqual([
-      { node: "z600", address: "100.91.199.87:7878" },
-      { node: "mail-greensley", address: "100.106.79.30:7878" },
+      { node: undefined, address: "100.91.199.87:7878" },
+      { node: undefined, address: "100.106.79.30:7878" },
     ])
   })
 
@@ -77,18 +80,54 @@ describe("parseTailscaleStatus", () => {
       Peer: { a: { HostName: "z600", TailscaleIPs: ["fd7a:115c:a1e0::1", "100.91.199.87"] } },
     }
     expect(parseTailscaleStatus(status, 7878)).toEqual([
-      { node: "z600", address: "[fd7a:115c:a1e0::1]:7878" },
+      { node: undefined, address: "[fd7a:115c:a1e0::1]:7878" },
     ])
   })
 
-  it("skips peers without a hostname or an address", () => {
+  it("skips peers without an address", () => {
     const status = { Peer: { a: { HostName: "x" }, b: { TailscaleIPs: ["1.2.3.4"] } } }
-    expect(parseTailscaleStatus(status, 7878)).toEqual([])
+    expect(parseTailscaleStatus(status, 7878)).toEqual([
+      { node: undefined, address: "1.2.3.4:7878" },
+    ])
   })
 
   it("returns nothing for an unexpected document", () => {
     expect(parseTailscaleStatus(null, 7878)).toEqual([])
     expect(parseTailscaleStatus({}, 7878)).toEqual([])
+  })
+})
+
+describe("Candidates", () => {
+  it("keeps an answered candidate out and the others pending", () => {
+    const candidates = new Candidates(30_000, 300_000)
+    candidates.add(["a:1", "b:2"])
+    expect(candidates.size).toBe(2)
+    candidates.adopted("a:1")
+    expect(candidates.size).toBe(1)
+    expect(candidates.due(0)).toEqual(["b:2"])
+  })
+
+  it("backs a failing candidate off exponentially up to the cap", () => {
+    const candidates = new Candidates(30_000, 120_000)
+    candidates.add(["a:1"])
+    candidates.failed("a:1", 0)
+    expect(candidates.due(29_999)).toEqual([])
+    expect(candidates.due(30_000)).toEqual(["a:1"])
+    candidates.failed("a:1", 30_000)
+    expect(candidates.due(89_999)).toEqual([])
+    expect(candidates.due(90_000)).toEqual(["a:1"])
+    candidates.failed("a:1", 90_000)
+    candidates.failed("a:1", 210_000)
+    expect(candidates.due(329_999)).toEqual([])
+    expect(candidates.due(330_000)).toEqual(["a:1"])
+  })
+
+  it("never re-adds an adopted address", () => {
+    const candidates = new Candidates(30_000, 300_000)
+    candidates.add(["a:1"])
+    candidates.adopted("a:1")
+    candidates.add(["a:1"])
+    expect(candidates.size).toBe(0)
   })
 })
 

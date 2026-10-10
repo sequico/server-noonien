@@ -186,8 +186,9 @@ on a specific provider.
   how many elements stay frozen are exposed as metrics.
 - **Bootstrap adapters: static seed, DNS SRV and Tailscale** — a static list always works; DNS SRV
   is the most provider-neutral discovery where a zone exists; Tailscale needs no configuration on
-  that mesh. Adapters only return an initial list, so adding Netbird, ZeroTier or Kubernetes later
-  is local.
+  that mesh. Adapters propose **candidates** and are re-read on a timer; a candidate joins the mesh
+  only once it answers `/info`, so a device that does not run the daemon is never adopted. Adding
+  Netbird, ZeroTier or Kubernetes later is local.
 - **Bounded retention: retire a silent peer without weakening the gate** — the durable metadata a
   collection depends on grows with the peers that vanish, and the peers gone the longest are exactly
   the ones that must be remembered. After `NOONIEND_FORGET_AFTER` (default 180 days) a peer is

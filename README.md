@@ -38,6 +38,7 @@ reachability over a VPN or a LAN.
 - [How it works](#how-it-works)
   - [Compaction](#compaction)
   - [Deletion and collection](#deletion-and-collection)
+- [Tools](#tools)
 - [Drop-in compatibility](#drop-in-compatibility)
 - [Security](#security)
 - [Development](#development)
@@ -144,9 +145,15 @@ node dist/gossip.js     # nooniend   — the replication daemon
 ### `server-noonien` — the MCP server
 
 The entry every MCP client uses. With **no argument** (or `serve`) it speaks MCP over **stdio**, so
-you don't run it yourself — the client spawns it and it lives for the session. Point your client at
-it; it works on one machine out of the box, and [sharing across machines](#share-across-machines) is
-the next step. In OpenCode (V2):
+you don't run it yourself — the client spawns it and it lives for the session:
+
+```sh
+npx -y server-noonien                          # the stdio command the client runs
+claude mcp add memory -- npx -y server-noonien # register it with Claude Code as the `memory` server
+```
+
+Point your client at it; it works on one machine out of the box, and [sharing across
+machines](#share-across-machines) is the next step. In OpenCode (V2):
 
 ```jsonc
 {
@@ -609,12 +616,27 @@ maintenance, its `noonien_mcp_*` counters (`noonien_mcp_folds_total`, `noonien_m
 `noonien_mcp_shards_merged`, `noonien_mcp_shard_stat_total`, `noonien_mcp_ops_decoded_total`,
 `noonien_mcp_compacted_total`, `noonien_mcp_compaction_failed_total`).
 
+## Tools
+
+The MCP surface is the official nine, drop-in: names, inputs, outputs and messages match
+`@modelcontextprotocol/server-memory`.
+
+| Tool | Does |
+| --- | --- |
+| `create_entities` | create multiple new entities in the knowledge graph |
+| `create_relations` | create multiple new relations between entities (active voice) |
+| `add_observations` | add new observations to existing entities |
+| `delete_entities` | delete entities and their associated relations |
+| `delete_observations` | delete specific observations from entities |
+| `delete_relations` | delete multiple relations |
+| `read_graph` | read the entire knowledge graph |
+| `search_nodes` | search nodes by a query, matched against entity names, types and observation content |
+| `open_nodes` | open specific nodes by their names |
+
 ## Drop-in compatibility
 
-The same nine tools, so it slots under the `memory` server name with no agent changes:
-
-`create_entities`, `create_relations`, `add_observations`, `delete_entities`, `delete_observations`,
-`delete_relations`, `read_graph`, `search_nodes`, `open_nodes`.
+The same nine tools ([Tools](#tools)), so it slots under the `memory` server name with no agent
+changes.
 
 The full graph is also exposed at the `memory://knowledge-graph` resource. The resource is
 read-only; clients can subscribe to it and receive `notifications/resources/updated` whenever a

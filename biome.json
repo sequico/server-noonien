@@ -89,7 +89,7 @@
   },
   "overrides": [
     {
-      "includes": ["package.json"],
+      "includes": ["package.json", "server.json", "mcpb/manifest.json"],
       "formatter": {
         "enabled": false
       }

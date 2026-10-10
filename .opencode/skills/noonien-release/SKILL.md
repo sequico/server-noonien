@@ -25,6 +25,11 @@ runs CI only (`.github/workflows/ci.yml`).
 - `release-type: node` with `bump-minor-pre-major`: while 0.x, `fix` → patch, `feat` → minor,
   breaking → minor (`0.8.0` → `0.8.1` / `0.9.0`).
 - Tags are `vX.Y.Z` (`include-component-in-tag: false`).
+- The Release PR bumps **every versioned artifact**: `package.json` and
+  `.release-please-manifest.json` by the strategy, plus `server.json` (both version fields) and
+  `mcpb/manifest.json` through `extra-files`. Those files join `package.json` in being excluded from
+  Biome's formatter, because release-please owns their formatting — a hand-edit must match what its
+  JSON updater writes (arrays expanded, two-space indent).
 - `skip-changelog: true`: release-please does not write `CHANGELOG.md`. That file is the one
   historical artifact, kept concise by hand — one line per release, with the pending change under
   `Unreleased` until the release turns it into the version and its date. `README.md`/`PLAN.md` stay

@@ -4,6 +4,12 @@
   "include-component-in-tag": false,
   "skip-changelog": true,
   "packages": {
-    ".": {}
+    ".": {
+      "extra-files": [
+        { "type": "json", "path": "server.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "server.json", "jsonpath": "$.packages[*].version" },
+        { "type": "json", "path": "mcpb/manifest.json", "jsonpath": "$.version" }
+      ]
+    }
   }
 }

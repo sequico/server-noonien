@@ -7,7 +7,7 @@ version and its date.
 
 [rp]: https://github.com/googleapis/release-please
 
-## Unreleased
+## 1.0.2 (2026-10-10)
 
 - Discovery: a peer joins the mesh only after its identity handshake, so a device that does not run
   `nooniend` is never adopted, and the sources are re-read periodically so a node joining the network

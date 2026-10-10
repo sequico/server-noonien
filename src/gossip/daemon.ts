@@ -144,18 +144,22 @@ export async function startGossip(
   // comes from the answer, never from the discovery source. A device that does not run
   // `nooniend` therefore never becomes a member and never blocks collection.
   const candidates = new Candidates(config.intervalMs, config.deadRetryMs)
-  const addSeeds = (found: readonly Seed[]): void => {
+  const addSeeds = (found: readonly Seed[], seedStatic: boolean): void => {
     const pending: string[] = []
     for (const seed of found) {
       if (seed.node === undefined) {
         pending.push(seed.address)
-      } else if (seed.node !== config.nodeId) {
+      } else if (seedStatic && seed.node !== config.nodeId) {
+        // A `node@host:port` seed is operator intent and enters membership directly — on
+        // the first discovery only. A static list is a constant, and `seed` clears the
+        // retention TTL's forgotten marker, so re-seeding it on every refresh would keep
+        // reviving a peer the TTL retired; a refresh only adds candidates.
         membership.seed([{ node: seed.node, address: seed.address, version: 0 }])
       }
     }
     candidates.add(pending)
   }
-  const discover = async (): Promise<void> => {
+  const discover = async (seedStatic: boolean): Promise<void> => {
     addSeeds(
       await collectSeeds({
         staticPeers: config.staticPeers,
@@ -163,9 +167,10 @@ export async function startGossip(
         tailscale: config.tailscale,
         port: config.listenPort,
       }),
+      seedStatic,
     )
   }
-  await discover()
+  await discover(true)
   let discoveredAt = Date.now()
 
   // Per-shard stable high-water mark: an operation at or below it has reached every
@@ -208,7 +213,7 @@ export async function startGossip(
     const roundAt = Date.now()
     if (config.discoverIntervalMs > 0 && roundAt - discoveredAt >= config.discoverIntervalMs) {
       discoveredAt = roundAt
-      await discover()
+      await discover(false)
     }
     await resolveSeeds(candidates, config.nodeId, membership, transportFor, roundAt)
     membership.prune()

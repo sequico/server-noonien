@@ -14,6 +14,7 @@ describe("loadGossipConfig", () => {
     expect(config.listenPort).toBe(DEFAULT_GOSSIP_PORT)
     expect(config.advertise).toBe(`${hostname()}:${DEFAULT_GOSSIP_PORT}`)
     expect(config.intervalMs).toBe(30_000)
+    expect(config.discoverIntervalMs).toBe(300_000)
     expect(config.suspectAfter).toBe(3)
     expect(config.deadAfter).toBe(6)
     expect(config.deadRetryMs).toBe(300_000)
@@ -57,6 +58,14 @@ describe("loadGossipConfig", () => {
 
   it("converts the dead-peer backoff from seconds to milliseconds", () => {
     expect(loadGossipConfig({ NOONIEND_DEAD_RETRY: "60" }).deadRetryMs).toBe(60_000)
+  })
+
+  it("converts the discovery refresh interval, letting 0 read the sources once", () => {
+    expect(loadGossipConfig({ NOONIEND_DISCOVER_INTERVAL: "60" }).discoverIntervalMs).toBe(60_000)
+    expect(loadGossipConfig({ NOONIEND_DISCOVER_INTERVAL: "0" }).discoverIntervalMs).toBe(0)
+    expect(() => loadGossipConfig({ NOONIEND_DISCOVER_INTERVAL: "-1" })).toThrow(
+      /DISCOVER_INTERVAL/,
+    )
   })
 
   it("parses the revoked node list", () => {

@@ -3,6 +3,7 @@
   "name": "io.github.sequico/server-noonien",
   "title": "server-noonien",
   "description": "Shared, serverless, conflict-free knowledge-graph memory for AI agents",
+  "websiteUrl": "https://github.com/sequico/server-noonien",
   "repository": {
     "url": "https://github.com/sequico/server-noonien",
     "source": "github"

@@ -290,6 +290,52 @@ are now — no history, no before/after, no changelog — and are revised alongs
 - **SCALING.md** — a forward-looking plan (not current state): the partial-replication model for
   1,000 / 10,000 nodes, built on the foundations listed there.
 
+## Planned: inspection tooling
+
+The machine-readable observability is already complete — the daemon serves `/health`, `/info`,
+`/peers`, `/status`, `/graph`, `/membership`, `/shards`, `/shards/digest`, `/metrics` and
+`/watermark`, and renders Prometheus metrics for liveness, peer health, the stable watermark and
+collection (`noonien_gossip_frozen_elements`, `noonien_gossip_absent_nodes`,
+`noonien_gossip_absent_seconds`) — but there is no **visual** surface to inspect the graph and the
+mesh, which the hosted memory services (Mem0, Zep) bundle as a dashboard. This is a
+product-maturity gap, not a technical one: what is missing is a renderer over routes that already
+exist, never new backend capability.
+
+The design keeps the project's ethos — local-first, no service to host, drop-in:
+
+- **Read-only by construction.** The UI reads the GET routes and never mutates; mutations stay on
+  the nine MCP tools, so it adds no write surface.
+- **No new runtime dependency.** The graph renders in plain SVG from the wire JSON; no framework
+  enters `dependencies` or the packaged tree.
+- **The routes are the SSOT.** The UI consumes the documented HTTP API and the graph JSON shape; it
+  never reimplements the fold or the CRDT.
+
+Three levels, cheapest first:
+
+1. **Grafana dashboard** — a dashboard JSON committed to the repo plus a `curl | jq` cookbook, over
+   the existing `/metrics`, `/status`, `/graph` and `/watermark`. No code, no dependency.
+2. **`noonien dashboard`** — an optional, read-only subcommand that serves a single-page UI (the
+   graph, the peer table with health, the shards and the stable watermark) from the local
+   directory, or proxied to a daemon through `/graph`, `/peers`, `/status` and `/watermark`. Bound
+   to `127.0.0.1` by default; a remote peer is authenticated with the same mTLS material the
+   transport already uses. A subcommand, not a daemon route: the daemon is a wire protocol
+   (`PROTOCOL.md`), and a UI must not widen it.
+3. **Mesh and convergence debug** — a topology view (every peer from `/peers` and `/status`) and the
+   convergence state (the stable watermark and the frozen elements `noonien_gossip_frozen_elements`
+   reports) — the CRDT's debuggability, which today lives in `src/gossip/collection.ts`.
+
+Deliberate non-goals:
+
+- **No token tracing.** Mem0 and Zep trace tokens because an LLM sits in their pipeline; noonien is
+  an explicit knowledge graph with no LLM in the loop, so there is nothing to trace. Observing a
+  client's MCP calls would be a different feature (OpenTelemetry export from the MCP server), not
+  part of this.
+- **No mutation from the UI**, no dashboard route inside the daemon, and no framework in the runtime
+  package.
+
+Open decisions: whether the UI ships in the npm package or stays repo-only, and whether it is
+hand-written zero-build or precompiled assets committed to `dist/`.
+
 ## Current state
 
 - **Core CRDT and the `file` backend** — an append-only operation log, the fold, and the nine

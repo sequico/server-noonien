@@ -1,6 +1,6 @@
 {
   "name": "server-noonien",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Shared, serverless, conflict-free memory for AI agents — a multi-machine drop-in for the MCP memory knowledge graph.",
   "mcpName": "io.github.sequico/server-noonien",
   "license": "MPL-2.0",

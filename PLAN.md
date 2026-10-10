@@ -278,7 +278,8 @@ through environment variables: the shared `NOONIEN_DIR` and `NOONIEN_NODE_ID` pl
 ## Documentation
 
 `README.md` and `PLAN.md` are the project's current-state documentation: they describe how things
-are now — no history, no changelog, no before/after — and are revised alongside the code:
+are now — no history, no before/after, no changelog — and are revised alongside the code
+(`CHANGELOG.md` is the one historical artifact, kept concise by hand: one line per release):
 
 - **README.md** — the user-facing guide: what server-noonien is, the problem it solves and how it is
   solved; the three commands and how to run each; sharing across machines (peer to peer or a shared

@@ -10,7 +10,8 @@ contributing you agree that your contributions are licensed under the [Mozilla P
 
 - Everything in the repository is in **English**: code, identifiers, comments, docs and commits.
 - **SSOT**, no duplication and no workarounds, within code/config and within docs.
-- Docs describe the **current state** only: no history, no changelog.
+- Docs describe the **current state** only: no history, no changelog — except `CHANGELOG.md`, kept
+  concise by hand (one line per release, the pending change under `Unreleased`).
 
 ## Getting started
 

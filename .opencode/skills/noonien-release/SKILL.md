@@ -25,12 +25,16 @@ runs CI only (`.github/workflows/ci.yml`).
 - `release-type: node` with `bump-minor-pre-major`: while 0.x, `fix` → patch, `feat` → minor,
   breaking → minor (`0.8.0` → `0.8.1` / `0.9.0`).
 - Tags are `vX.Y.Z` (`include-component-in-tag: false`).
-- `skip-changelog: true`: no `CHANGELOG.md` is written; repository docs stay snapshot-only.
+- `skip-changelog: true`: release-please does not write `CHANGELOG.md`. That file is the one
+  historical artifact, kept concise by hand — one line per release, with the pending change under
+  `Unreleased` until the release turns it into the version and its date. `README.md`/`PLAN.md` stay
+  snapshot-only.
 
 ## Files
 
 - `release-please-config.json` — release-please configuration.
 - `.release-please-manifest.json` — the last released version; release-please maintains it.
+- `CHANGELOG.md` — the release history, one line per release, maintained by hand.
 - `.github/workflows/release.yml` — release-please plus the npm publish.
 
 ## Rules

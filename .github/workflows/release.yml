@@ -146,25 +146,35 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    # The released version lives in the tagged tree: release-please bumps server.json and
+    # the MCPB manifest in the Release PR (`extra-files`), and the registry validates that
+    # tree. Nothing is rewritten here.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.release.outputs.tag_name }}
           persist-credentials: false
-      # server.json carries the released version; pin it to the published tag so a
-      # manual bump cannot drift from the registry entry.
-      - name: Pin server.json to the released version
-        env:
-          TAG: ${{ needs.release.outputs.tag_name }}
-        run: |
-          version=${TAG#v}
-          jq --arg v "$version" '.version = $v | .packages[].version = $v' server.json > server.tmp
-          mv server.tmp server.json
       # Always the latest release: an older mcp-publisher is rejected ("invalid audience").
       - name: Install mcp-publisher
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
       - name: Publish to the MCP Registry
         run: |
+          set -o pipefail
           ./mcp-publisher login github-oidc
-          ./mcp-publisher publish
+          # The registry validates the npm package version, and a freshly published
+          # release can take a few minutes to appear on npm, so the first attempt can be
+          # rejected with a 404 ("Wait and retry"). Retry that case only; fail at once on
+          # anything else, so a genuine error is not masked.
+          for attempt in 1 2 3 4 5 6; do
+            if ./mcp-publisher publish 2>&1 | tee /tmp/registry-publish.log; then
+              exit 0
+            fi
+            if ! grep -q -e "was not found (status: 404)" -e "Wait and retry" /tmp/registry-publish.log; then
+              exit 1
+            fi
+            echo "npm has not exposed the released version yet; retrying in 60s (attempt $attempt/6)"
+            sleep 60
+          done
+          echo "the npm version did not appear in time" >&2
+          exit 1

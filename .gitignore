@@ -22,6 +22,9 @@ files.txt
 .vscode/*
 !.vscode/extensions.json
 
+# Playwright MCP session artifacts
+.playwright-mcp/
+
 # Environment
 .env
 .env.*

@@ -13,6 +13,8 @@ version and its date.
   registered for.
 - Document the `nooniend` wire protocol in [`PROTOCOL.md`](PROTOCOL.md); the README's daemon API
   section now points to it.
+- Disclose the package's one process spawn — `execFile` without a shell, in `nooniend` only and
+  opt-in — in [`SECURITY.md`](SECURITY.md).
 
 ## 1.0.2 (2026-10-10)
 

@@ -42,6 +42,18 @@ Three assumptions the collection gate makes explicit, and does not defend agains
   deleted data. Where a name must never be independently minted for the same logical entity, keep
   the element covered by a retained threshold or depart the peer.
 
+## Process execution
+
+The package spawns one external process, in the `nooniend` daemon only:
+`execFile("tailscale", ["status", "--json"], { maxBuffer: 8 * 1024 * 1024 })` in
+`src/gossip/bootstrap.ts`, which backs the Tailscale discovery adapter and runs only when the
+operator sets `NOONIEND_TAILSCALE=true` (off by default). It is `execFile`, not `exec`: there is no
+shell, the binary and its arguments are constants, and no tool input, environment value or
+peer-supplied string ever reaches the command line, so the call carries no injection path. The MCP
+server (`server-noonien`) imports neither the daemon nor this adapter. A static source scanner flags
+the `node:child_process` import itself (`MTC-SRC-002` in mcprush's trust report for the listing):
+that is the capability, not a vulnerability.
+
 ## Supported versions
 
 Only the latest release is supported with security fixes.

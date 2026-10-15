@@ -59,6 +59,14 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm run gate
+      # The gate proves the tree builds and passes; this proves the *release* is coherent:
+      # every versioned artifact carries the version release-please computed, every `bin`
+      # is in the tarball, and the changelog's top heading either is `Unreleased` or names
+      # exactly that version. A hand-cut heading that disagrees has to fail here — before
+      # the merge, the tag and the publish — not after them.
+      - name: Release preflight
+        if: ${{ steps.open.outputs.prs_created == 'true' }}
+        run: npm run release:check
       # The gate is green; merge the version bump. The branch is left in place: the
       # release-please PR is the same branch every release, and deleting it in the same
       # run makes the pull_request CI run fail to start ("workflow file issue").

@@ -14,9 +14,12 @@ runs CI only (`.github/workflows/ci.yml`).
 1. Land feature work on `main` with **Conventional Commits** (`fix:`, `feat:`, `feat!:` / `BREAKING
    CHANGE`).
 2. Trigger the **Release** workflow manually (`workflow_dispatch`, the "Run workflow" button). It
-   does everything else itself: release-please opens or refreshes the Release PR, the workflow
-   merges it, then release-please tags `vX.Y.Z` and creates the GitHub Release, and the same run
-   publishes to npm with provenance. Ordinary pushes to `main` run CI only and never release.
+   does everything else itself: release-please opens or refreshes the Release PR, the workflow gates
+   its head (`npm run gate`) and runs the **release preflight** (`npm run release:check`: the five
+   versioned artifacts agree, every `bin` is in the tarball, the changelog's top heading is
+   `Unreleased` or exactly the version going out), then merges it, then release-please tags
+   `vX.Y.Z` and creates the GitHub Release, and the same run publishes to npm with provenance.
+   Ordinary pushes to `main` run CI only and never release.
 3. Nothing else to do: the `npm` environment has no required reviewers, so the publish runs
    automatically.
 
@@ -41,6 +44,7 @@ runs CI only (`.github/workflows/ci.yml`).
 - `.release-please-manifest.json` — the last released version; release-please maintains it.
 - `CHANGELOG.md` — the release history, one line per release, maintained by hand.
 - `.github/workflows/release.yml` — release-please plus the npm publish.
+- `scripts/release-check.mjs` — the release preflight (`npm run release:check`).
 
 ## Rules
 

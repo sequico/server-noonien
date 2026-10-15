@@ -82,6 +82,11 @@ export interface GossipConfig {
    * deletion hostage.
    */
   readonly departed: ReadonlySet<string>
+  /**
+   * URL POSTed when the stable watermark advances, so a listener learns a peer wrote
+   * something. Best effort: a hook that is down never disturbs replication.
+   */
+  readonly hookUrl: string | undefined
   readonly tls: GossipTlsConfig | undefined
 }
 
@@ -136,6 +141,8 @@ export interface GossipConfig {
  *   same per-element decisions, one map bounded by the shards this node holds) and an
  *   unaccounted peer leaves a durable *blanket*. Nothing is forfeited — that stays
  *   `NOONIEND_DEPARTED` — so this only bounds the metadata the gate depends on.
+ * - `NOONIEND_HOOK_URL` — `http(s)` URL POSTed with `{ node, watermark }` when the stable
+ *   watermark advances, so a listener learns a peer wrote something (best effort).
  * - `NOONIEND_TLS_CERT` / `_KEY` / `_CA` / `_REQUIRE_CLIENT` — enable TLS;
  *   a client certificate is required by default (mTLS).
  */
@@ -173,6 +180,13 @@ export function loadGossipConfig(env: NodeJS.ProcessEnv = process.env): GossipCo
   const deadAfter = parseInteger(env["NOONIEND_DEAD_AFTER"], 6, "NOONIEND_DEAD_AFTER")
   if (deadAfter < suspectAfter) {
     throw new Error("NOONIEND_DEAD_AFTER must be >= NOONIEND_SUSPECT_AFTER")
+  }
+  const hookUrl = env["NOONIEND_HOOK_URL"]?.trim() || undefined
+  if (hookUrl !== undefined) {
+    const parsed = new URL(hookUrl)
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error(`NOONIEND_HOOK_URL must be http or https, not ${parsed.protocol}`)
+    }
   }
   const gc = parseFlag(env["NOONIEND_GC"], true, "NOONIEND_GC")
   const fanout = parseInteger(env["NOONIEND_FANOUT"], 0, "NOONIEND_FANOUT", 0)
@@ -222,6 +236,7 @@ export function loadGossipConfig(env: NodeJS.ProcessEnv = process.env): GossipCo
     gc,
     forgetAfterMs: parseWindow(env["NOONIEND_FORGET_AFTER"]),
     departed: parseNodeList(env["NOONIEND_DEPARTED"]),
+    hookUrl,
     tls: parseTls(env),
   }
 }

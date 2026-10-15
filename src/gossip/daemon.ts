@@ -21,6 +21,7 @@ import {
 } from "./collection.js"
 import { type GossipConfig, loadGossipConfig } from "./config.js"
 import { syncMembership, syncWith } from "./exchange.js"
+import { notifyHook } from "./hook.js"
 import { PeerKnowledge, peersPath } from "./knowledge.js"
 import { Membership } from "./membership.js"
 import { ReplicaStore } from "./replica.js"
@@ -181,6 +182,9 @@ export async function startGossip(
   // observed from each peer is kept across rounds: a stale value is a lower bound,
   // hence conservative (safe), and a never-contacted peer counts as empty.
   const stable = new Map<string, number>()
+  // The watermark as it stood at the end of the previous round, so the hook fires only
+  // when it actually advances (and never on the first round, which only establishes it).
+  let lastWatermark: string | undefined
   const random = seededRandom(config.nodeId)
   const startedAt = Date.now()
   const server = await startGossipServer({
@@ -304,6 +308,20 @@ export async function startGossip(
     // bound, so a peer not sampled now keeps it and one never reached counts empty.
     const remotes = peers.map((peer) => knowledge.frontier(peer.node) ?? EMPTY_SHARDS)
     const replicated = fillStableWatermark(stable, local, remotes)
+    // Sorted, so two rounds with the same content produce the same string and the hook
+    // does not fire on an insertion-order change alone.
+    const watermark = Object.fromEntries(
+      [...stable.entries()].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
+    )
+    const serialized = JSON.stringify(watermark)
+    if (
+      config.hookUrl !== undefined &&
+      lastWatermark !== undefined &&
+      serialized !== lastWatermark
+    ) {
+      await notifyHook(config.hookUrl, { node: config.nodeId, watermark }, { metrics })
+    }
+    lastWatermark = serialized
     metrics.gauge("noonien_gossip_shards", "Shards held locally", local.length)
     metrics.gauge(
       "noonien_gossip_stable_shards",

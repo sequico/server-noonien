@@ -379,6 +379,140 @@ describe("MemoryGraph", () => {
     ])
   })
 
+  it("merges one entity into another, union and repointing", async () => {
+    const graph = newGraph()
+    await graph.createEntities([
+      { name: "Ada", entityType: "person", observations: ["math"] },
+      { name: "Ada Lovelace", entityType: "person", observations: ["math", "logic"] },
+      { name: "Bob", entityType: "person", observations: [] },
+    ])
+    await graph.createRelations([
+      { from: "Ada", to: "Bob", relationType: "knows" },
+      { from: "Bob", to: "Ada", relationType: "knows" },
+    ])
+    expect(await graph.mergeEntities([{ from: "Ada", into: "Ada Lovelace" }])).toEqual({
+      results: [{ from: "Ada", into: "Ada Lovelace", merged: true }],
+    })
+    // The union does not duplicate the content the target already held, and both
+    // directions of the repointing are followed.
+    expect(await graph.readGraph()).toEqual({
+      entities: [
+        { name: "Ada Lovelace", entityType: "person", observations: ["math", "logic"] },
+        { name: "Bob", entityType: "person", observations: [] },
+      ],
+      relations: [
+        { from: "Ada Lovelace", to: "Bob", relationType: "knows" },
+        { from: "Bob", to: "Ada Lovelace", relationType: "knows" },
+      ],
+    })
+  })
+
+  it("reports a merge it cannot do", async () => {
+    const graph = newGraph()
+    await seed(graph)
+    expect(
+      await graph.mergeEntities([
+        { from: "Ada", into: "Ada" },
+        { from: "Ghost", into: "Ada" },
+        { from: "Ada", into: "Ghost" },
+      ]),
+    ).toEqual({
+      results: [
+        {
+          from: "Ada",
+          into: "Ada",
+          merged: false,
+          reason: "an entity cannot be merged into itself",
+        },
+        { from: "Ghost", into: "Ada", merged: false, reason: "entity not found" },
+        { from: "Ada", into: "Ghost", merged: false, reason: 'entity "Ghost" not found' },
+      ],
+    })
+    expect((await graph.readGraph()).entities.map((entity) => entity.name)).toEqual(["Ada", "Bob"])
+  })
+
+  it("replaces an observation content, keeping the rest", async () => {
+    const graph = newGraph()
+    await graph.createEntities([
+      { name: "Ada", entityType: "person", observations: ["math", "logic"] },
+    ])
+    expect(
+      await graph.updateObservations([
+        { entityName: "Ada", oldContent: "math", newContent: "mathematics" },
+        { entityName: "Ada", oldContent: "logic", newContent: "mathematics" },
+        { entityName: "Ada", oldContent: "mathematics", newContent: "mathematics" },
+        { entityName: "Ada", oldContent: "absent", newContent: "x" },
+        { entityName: "Ghost", oldContent: "x", newContent: "y" },
+      ]),
+    ).toEqual({
+      results: [
+        { entityName: "Ada", oldContent: "math", newContent: "mathematics", updated: true },
+        { entityName: "Ada", oldContent: "logic", newContent: "mathematics", updated: true },
+        { entityName: "Ada", oldContent: "mathematics", newContent: "mathematics", updated: true },
+        {
+          entityName: "Ada",
+          oldContent: "absent",
+          newContent: "x",
+          updated: false,
+          reason: "observation not found",
+        },
+        {
+          entityName: "Ghost",
+          oldContent: "x",
+          newContent: "y",
+          updated: false,
+          reason: "entity not found",
+        },
+      ],
+    })
+    // Both sources collapsed onto one content: the replacement is a set, not a copy.
+    expect((await graph.readGraph()).entities[0]?.observations).toEqual(["mathematics"])
+  })
+
+  it("pages a read and filters a search by type", async () => {
+    const graph = newGraph()
+    await graph.createEntities([
+      { name: "A", entityType: "person", observations: [] },
+      { name: "B", entityType: "place", observations: [] },
+      { name: "C", entityType: "person", observations: [] },
+    ])
+    await graph.createRelations([{ from: "A", to: "B", relationType: "visits" }])
+    expect((await graph.readGraph({ limit: 2, offset: 1 })).entities.map((e) => e.name)).toEqual([
+      "B",
+      "C",
+    ])
+    expect((await graph.readGraph({ limit: 1 })).relations).toEqual([
+      { from: "A", to: "B", relationType: "visits" },
+    ])
+    expect(
+      (await graph.searchNodes("", { entityType: "person" })).entities.map((e) => e.name),
+    ).toEqual(["A", "C"])
+    expect(
+      (await graph.searchNodes("", { limit: 1, offset: 1 })).entities.map((e) => e.name),
+    ).toEqual(["B"])
+  })
+
+  it("reports an element two nodes both wrote", async () => {
+    // Each node writes on its own store — a single store would let the second one see
+    // the first's operation and skip it — then the shards are exchanged, as the daemon
+    // does.
+    const backendA = new MemoryBackend()
+    const backendB = new MemoryBackend()
+    const one = new MemoryGraph(new ShardLog(backendA, "n1"))
+    const two = new MemoryGraph(new ShardLog(backendB, "n2"))
+    await one.createEntities([{ name: "Ada", entityType: "person", observations: [] }])
+    // One author is not a conflict.
+    expect(await one.conflicts()).toEqual({ conflicts: [] })
+    await two.createEntities([{ name: "Ada", entityType: "scientist", observations: [] }])
+    const shard = await backendB.read("n2.jsonl")
+    if (shard !== undefined) {
+      await backendA.append("n2.jsonl", shard)
+    }
+    expect(await one.conflicts()).toEqual({
+      conflicts: [{ element: 'entity "Ada"', authors: ["n1", "n2"], operations: 2 }],
+    })
+  })
+
   it("searches entities and includes relations touching the matches", async () => {
     const graph = newGraph()
     await seed(graph)

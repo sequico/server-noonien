@@ -7,7 +7,7 @@ import type { Metrics } from "../metrics.js"
 import type { CollectionGuard, OperationLog, PruneResult } from "../store/log.js"
 import { foldOperations } from "./fold.js"
 import type { Operation, OperationDraft } from "./operations.js"
-import { observationContentKey, relationKey } from "./operations.js"
+import { describeElement, elementEffect, observationContentKey, relationKey } from "./operations.js"
 import type { Entity, KnowledgeGraph, Relation } from "./types.js"
 
 export interface ObservationInput {
@@ -76,6 +76,62 @@ export interface UpdatedRelation {
 
 export interface UpdateRelationsResult {
   readonly results: readonly UpdatedRelation[]
+}
+
+export interface MergeEntitiesInput {
+  readonly from: string
+  readonly into: string
+}
+
+export interface MergedEntity {
+  readonly from: string
+  readonly into: string
+  readonly merged: boolean
+  readonly reason?: string
+}
+
+export interface MergeEntitiesResult {
+  readonly results: readonly MergedEntity[]
+}
+
+export interface ObservationUpdateInput {
+  readonly entityName: string
+  readonly oldContent: string
+  readonly newContent: string
+}
+
+export interface UpdatedObservation {
+  readonly entityName: string
+  readonly oldContent: string
+  readonly newContent: string
+  readonly updated: boolean
+  readonly reason?: string
+}
+
+export interface UpdateObservationsResult {
+  readonly results: readonly UpdatedObservation[]
+}
+
+/** How much of a read to take back. Both fields are optional: absent means everything. */
+export interface PageOptions {
+  readonly limit?: number | undefined
+  readonly offset?: number | undefined
+}
+
+export interface SearchOptions extends PageOptions {
+  /** Only entities of this exact type; absent means any type. */
+  readonly entityType?: string | undefined
+}
+
+/** An element more than one node has written, and who wrote it. */
+export interface ConflictEntry {
+  readonly element: string
+  readonly authors: readonly string[]
+  readonly operations: number
+}
+
+export interface ConflictReport {
+  readonly conflicts: readonly ConflictEntry[]
 }
 
 export interface MemoryGraphOptions {
@@ -280,6 +336,104 @@ function planRelationUpdate(
     drafts.push({ type: "relation.add", ...target })
   }
   return { ...current, updated: true }
+}
+
+/** The slice a read asked for; an absent limit means everything from the offset. */
+function page(entities: readonly Entity[], options: PageOptions): Entity[] {
+  const offset = options.offset ?? 0
+  return options.limit === undefined
+    ? entities.slice(offset)
+    : entities.slice(offset, offset + options.limit)
+}
+
+/** Plan one observation replacement: tombstone the old content, add the new one once. */
+function planObservationUpdate(
+  input: ObservationUpdateInput,
+  working: Map<string, Set<string>>,
+  drafts: OperationDraft[],
+): UpdatedObservation {
+  const present = working.get(input.entityName)
+  if (present === undefined) {
+    return { ...input, updated: false, reason: "entity not found" }
+  }
+  if (input.oldContent === input.newContent) {
+    return present.has(input.oldContent)
+      ? { ...input, updated: true }
+      : { ...input, updated: false, reason: "observation not found" }
+  }
+  if (!present.has(input.oldContent)) {
+    return { ...input, updated: false, reason: "observation not found" }
+  }
+  present.delete(input.oldContent)
+  drafts.push({
+    type: "observation.delete",
+    entityName: input.entityName,
+    content: input.oldContent,
+  })
+  if (!present.has(input.newContent)) {
+    present.add(input.newContent)
+    drafts.push({
+      type: "observation.add",
+      entityName: input.entityName,
+      content: input.newContent,
+      slot: 0,
+    })
+  }
+  return { ...input, updated: true }
+}
+
+/** Plan one merge: union the observations, repoint the relations, tombstone the source. */
+function planMerge(
+  input: MergeEntitiesInput,
+  relations: Relation[],
+  working: Map<string, Entity>,
+  drafts: OperationDraft[],
+): MergedEntity {
+  if (input.from === input.into) {
+    return { ...input, merged: false, reason: "an entity cannot be merged into itself" }
+  }
+  const from = working.get(input.from)
+  if (from === undefined) {
+    return { ...input, merged: false, reason: "entity not found" }
+  }
+  const into = working.get(input.into)
+  if (into === undefined) {
+    return { ...input, merged: false, reason: `entity "${input.into}" not found` }
+  }
+  const present = new Set(into.observations)
+  const added: string[] = []
+  for (const content of from.observations) {
+    if (present.has(content)) {
+      continue
+    }
+    present.add(content)
+    added.push(content)
+  }
+  for (const [index, relation] of relations.entries()) {
+    if (relation.from !== input.from && relation.to !== input.from) {
+      continue
+    }
+    drafts.push({ type: "relation.delete", ...relation })
+    const repointed = {
+      from: relation.from === input.from ? input.into : relation.from,
+      to: relation.to === input.from ? input.into : relation.to,
+      relationType: relation.relationType,
+    }
+    relations[index] = repointed
+    drafts.push({ type: "relation.add", ...repointed })
+  }
+  for (const content of new Set(from.observations)) {
+    drafts.push({ type: "observation.delete", entityName: input.from, content })
+  }
+  drafts.push({ type: "entity.delete", name: input.from })
+  observationAddDrafts(drafts, input.into, added)
+  working.delete(input.from)
+  working.set(input.into, {
+    name: input.into,
+    entityType: into.entityType,
+    observations: [...into.observations, ...added],
+  })
+  return { ...input, merged: true }
 }
 
 /**
@@ -578,8 +732,80 @@ export class MemoryGraph {
     })
   }
 
-  async readGraph(): Promise<KnowledgeGraph> {
-    return this.currentGraph()
+  /**
+   * Replace one observation content with another on an entity — the edit an add and a
+   * delete would need two calls for. It is content-level, like the delete it is built
+   * on: every occurrence of the old content goes and the new one is added once, so
+   * replacing a content with one the entity already holds only removes the old.
+   */
+  async updateObservations(
+    inputs: readonly ObservationUpdateInput[],
+  ): Promise<UpdateObservationsResult> {
+    return this.run(async () => {
+      const graph = await this.currentGraph()
+      const working = new Map(
+        graph.entities.map((entity) => [entity.name, new Set(entity.observations)]),
+      )
+      const drafts: OperationDraft[] = []
+      const results = inputs.map((input) => planObservationUpdate(input, working, drafts))
+      await this.commit(drafts)
+      return { results }
+    })
+  }
+
+  /**
+   * Merge one entity into another: the union of their observations (a content the
+   * target already holds is not duplicated), every incident relation of the merged
+   * entity repointed to the target, and the merged entity tombstoned with its
+   * observations. This is the way to combine two entities, which a rename onto an
+   * existing name refuses to guess at.
+   */
+  async mergeEntities(inputs: readonly MergeEntitiesInput[]): Promise<MergeEntitiesResult> {
+    return this.run(async () => {
+      const graph = await this.currentGraph()
+      const working = new Map(graph.entities.map((entity) => [entity.name, entity]))
+      const relations = [...graph.relations]
+      const drafts: OperationDraft[] = []
+      const results = inputs.map((input) => planMerge(input, relations, working, drafts))
+      await this.commit(drafts)
+      return { results }
+    })
+  }
+
+  /**
+   * Every element more than one node has written, with its authors and how many
+   * operations touch it. The fold is last-writer-wins and resolves a concurrent write
+   * in silence; this reads the operation log instead, so the agent can see where two
+   * machines claimed the same element and repair it.
+   */
+  async conflicts(): Promise<ConflictReport> {
+    const ops = await this.log.read()
+    const byKey = new Map<string, { element: string; authors: Set<string>; operations: number }>()
+    for (const op of ops) {
+      const { key } = elementEffect(op)
+      const entry = byKey.get(key) ?? {
+        element: describeElement(op),
+        authors: new Set<string>(),
+        operations: 0,
+      }
+      entry.authors.add(op.node)
+      entry.operations += 1
+      byKey.set(key, entry)
+    }
+    const conflicts = [...byKey.values()]
+      .filter((entry) => entry.authors.size > 1)
+      .map((entry) => ({
+        element: entry.element,
+        authors: [...entry.authors].sort(),
+        operations: entry.operations,
+      }))
+    return { conflicts }
+  }
+
+  async readGraph(options: PageOptions = {}): Promise<KnowledgeGraph> {
+    const graph = await this.currentGraph()
+    const entities = page(graph.entities, options)
+    return { entities, relations: incidentRelations(graph, entities) }
   }
 
   /**
@@ -591,15 +817,17 @@ export class MemoryGraph {
     return this.run(() => this.log.prune())
   }
 
-  async searchNodes(query: string): Promise<KnowledgeGraph> {
+  async searchNodes(query: string, options: SearchOptions = {}): Promise<KnowledgeGraph> {
     const graph = await this.currentGraph()
     const needle = query.toLowerCase()
-    const entities = graph.entities.filter(
+    const matched = graph.entities.filter(
       (entity) =>
-        entity.name.toLowerCase().includes(needle) ||
-        entity.entityType.toLowerCase().includes(needle) ||
-        entity.observations.some((content) => content.toLowerCase().includes(needle)),
+        (options.entityType === undefined || entity.entityType === options.entityType) &&
+        (entity.name.toLowerCase().includes(needle) ||
+          entity.entityType.toLowerCase().includes(needle) ||
+          entity.observations.some((content) => content.toLowerCase().includes(needle))),
     )
+    const entities = page(matched, options)
     return { entities, relations: incidentRelations(graph, entities) }
   }
 

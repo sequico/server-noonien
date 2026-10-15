@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import { readFile } from "node:fs/promises"
 import type { JSONRPCResultResponse } from "@modelcontextprotocol/server"
 import { afterEach, describe, expect, it } from "vitest"
 import { GRAPH_RESOURCE_URI } from "../src/server.js"
@@ -37,7 +38,26 @@ const OFFICIAL_TOOLS = [
 ]
 
 /** Additions the official server does not have. */
-const EXTENSION_TOOLS = ["update_entities", "update_relations"]
+const EXTENSION_TOOLS = [
+  "update_entities",
+  "update_observations",
+  "update_relations",
+  "merge_entities",
+  "read_conflicts",
+]
+
+/** The tool names the README's Tools table lists, so the two cannot drift apart. */
+async function readmeToolNames(): Promise<string[]> {
+  const text = await readFile(new URL("../README.md", import.meta.url), "utf8")
+  const section = text.slice(text.indexOf("## Tools"), text.indexOf("## Drop-in compatibility"))
+  const names: string[] = []
+  for (const match of section.matchAll(/^\| `([a-z_]+)` \|/gm)) {
+    if (match[1] !== undefined) {
+      names.push(match[1])
+    }
+  }
+  return names
+}
 
 describe("memory MCP server", () => {
   it("reports only the package name and version in serverInfo", async () => {
@@ -204,6 +224,62 @@ describe("memory MCP server", () => {
       entities: [bob],
       relations: [],
     })
+  })
+
+  it("lists exactly the registered tools in the README", async () => {
+    const client = start()
+    await client.initialize()
+    const tools = result<{ tools: { name: string }[] }>(await client.request("tools/list")).tools
+    expect((await readmeToolNames()).sort()).toEqual(tools.map((tool) => tool.name).sort())
+  })
+
+  it("edits an observation and merges entities through the tools", async () => {
+    const client = start()
+    await client.initialize()
+    await client.callTool("create_entities", {
+      entities: [
+        { name: "Ada", entityType: "person", observations: ["math"] },
+        { name: "Ada Lovelace", entityType: "person", observations: [] },
+      ],
+    })
+    expect(
+      (
+        await client.callTool("update_observations", {
+          updates: [{ entityName: "Ada", oldContent: "math", newContent: "mathematics" }],
+        })
+      ).structuredContent,
+    ).toEqual({
+      results: [
+        { entityName: "Ada", oldContent: "math", newContent: "mathematics", updated: true },
+      ],
+    })
+    expect(
+      (await client.callTool("merge_entities", { merges: [{ from: "Ada", into: "Ada Lovelace" }] }))
+        .structuredContent,
+    ).toEqual({ results: [{ from: "Ada", into: "Ada Lovelace", merged: true }] })
+    expect((await client.callTool("read_graph")).structuredContent).toEqual({
+      entities: [{ name: "Ada Lovelace", entityType: "person", observations: ["mathematics"] }],
+      relations: [],
+    })
+  })
+
+  it("pages a read and reports that one node wrote nothing twice", async () => {
+    const client = start()
+    await client.initialize()
+    await client.callTool("create_entities", {
+      entities: [
+        { name: "A", entityType: "person", observations: [] },
+        { name: "B", entityType: "person", observations: [] },
+      ],
+    })
+    expect((await client.callTool("read_graph", { limit: 1 })).structuredContent).toEqual({
+      entities: [{ name: "A", entityType: "person", observations: [] }],
+      relations: [],
+    })
+    expect(
+      (await client.callTool("search_nodes", { query: "", offset: 1 })).structuredContent,
+    ).toMatchObject({ entities: [{ name: "B" }] })
+    expect((await client.callTool("read_conflicts")).structuredContent).toEqual({ conflicts: [] })
   })
 
   it("renames an entity, moving its observations and relations", async () => {

@@ -47,11 +47,11 @@ function textResult(text: string): { type: "text"; text: string } {
 }
 
 /**
- * Register the nine drop-in memory tools, the two update extensions and the
+ * Register the nine drop-in memory tools, the extension tools beside them and the
  * knowledge-graph resource on a server, backed by the given graph. The nine
  * names, inputs, outputs, messages and annotations mirror
- * `@modelcontextprotocol/server-memory` exactly; `update_entities` and
- * `update_relations` are additions the official server does not have. `onMutate`
+ * `@modelcontextprotocol/server-memory` exactly; the `update_*`, `merge_entities`
+ * and `read_conflicts` additions never change them. `onMutate`
  * runs after every successful mutation so the server can notify subscribers.
  */
 export function registerMemoryTools(
@@ -176,6 +176,43 @@ export function registerMemoryTools(
   )
 
   server.registerTool(
+    "update_observations",
+    {
+      title: "Update Observations",
+      description: "Replace observation contents on existing entities in the knowledge graph",
+      inputSchema: z.object({
+        updates: z.array(
+          z.object({
+            entityName: z.string().describe("The name of the entity holding the observation"),
+            oldContent: z.string().describe("The observation content to replace"),
+            newContent: z.string().describe("The content to replace it with"),
+          }),
+        ),
+      }),
+      outputSchema: z.object({
+        results: z.array(
+          z.object({
+            entityName: z.string(),
+            oldContent: z.string(),
+            newContent: z.string(),
+            updated: z.boolean(),
+            reason: z.string().optional(),
+          }),
+        ),
+      }),
+      annotations: annotationsUpdate,
+    },
+    async ({ updates }) => {
+      const { results } = await graph.updateObservations(updates)
+      onMutate()
+      return {
+        content: [textResult(JSON.stringify(results, null, 2))],
+        structuredContent: { results },
+      }
+    },
+  )
+
+  server.registerTool(
     "update_relations",
     {
       title: "Update Relations",
@@ -217,6 +254,42 @@ export function registerMemoryTools(
     },
     async ({ relations }) => {
       const { results } = await graph.updateRelations(relations)
+      onMutate()
+      return {
+        content: [textResult(JSON.stringify(results, null, 2))],
+        structuredContent: { results },
+      }
+    },
+  )
+
+  server.registerTool(
+    "merge_entities",
+    {
+      title: "Merge Entities",
+      description:
+        "Merge an entity into another: the union of their observations, its relations repointed, the merged entity deleted",
+      inputSchema: z.object({
+        merges: z.array(
+          z.object({
+            from: z.string().describe("The name of the entity to merge in and delete"),
+            into: z.string().describe("The name of the entity it is merged into"),
+          }),
+        ),
+      }),
+      outputSchema: z.object({
+        results: z.array(
+          z.object({
+            from: z.string(),
+            into: z.string(),
+            merged: z.boolean(),
+            reason: z.string().optional(),
+          }),
+        ),
+      }),
+      annotations: annotationsUpdate,
+    },
+    async ({ merges }) => {
+      const { results } = await graph.mergeEntities(merges)
       onMutate()
       return {
         content: [textResult(JSON.stringify(results, null, 2))],
@@ -312,13 +385,27 @@ export function registerMemoryTools(
     "read_graph",
     {
       title: "Read Graph",
-      description: "Read the entire knowledge graph",
-      inputSchema: z.object({}),
+      description:
+        "Read the knowledge graph, or a page of it: the optional limit and offset take a slice of the entities in name order",
+      inputSchema: z.object({
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("The most entities to return; omit for all of them"),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("How many entities to skip before the page; omit for none"),
+      }),
       outputSchema: KnowledgeGraphSchema,
       annotations: annotationsRead,
     },
-    async () => {
-      const graphValue = await graph.readGraph()
+    async ({ limit, offset }) => {
+      const graphValue = await graph.readGraph({ limit, offset })
       return {
         content: [textResult(JSON.stringify(graphValue, null, 2))],
         structuredContent: graphValue,
@@ -338,12 +425,28 @@ export function registerMemoryTools(
           .describe(
             "The search query to match against entity names, types, and observation content",
           ),
+        entityType: z
+          .string()
+          .optional()
+          .describe("Only entities of this exact type; omit to match every type"),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("The most entities to return; omit for all of them"),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("How many matches to skip before the page; omit for none"),
       }),
       outputSchema: KnowledgeGraphSchema,
       annotations: annotationsRead,
     },
-    async ({ query }) => {
-      const graphValue = await graph.searchNodes(query)
+    async ({ query, entityType, limit, offset }) => {
+      const graphValue = await graph.searchNodes(query, { entityType, limit, offset })
       return {
         content: [textResult(JSON.stringify(graphValue, null, 2))],
         structuredContent: graphValue,
@@ -367,6 +470,33 @@ export function registerMemoryTools(
       return {
         content: [textResult(JSON.stringify(graphValue, null, 2))],
         structuredContent: graphValue,
+      }
+    },
+  )
+
+  server.registerTool(
+    "read_conflicts",
+    {
+      title: "Read Conflicts",
+      description:
+        "List the elements more than one node has written, with their authors: a concurrent edit the last-writer-wins fold resolved in silence",
+      inputSchema: z.object({}),
+      outputSchema: z.object({
+        conflicts: z.array(
+          z.object({
+            element: z.string(),
+            authors: z.array(z.string()),
+            operations: z.number().int(),
+          }),
+        ),
+      }),
+      annotations: annotationsRead,
+    },
+    async () => {
+      const report = await graph.conflicts()
+      return {
+        content: [textResult(JSON.stringify(report, null, 2))],
+        structuredContent: report,
       }
     },
   )

@@ -225,11 +225,16 @@ on a specific provider.
 | `search_nodes` | read |
 | `open_nodes` | read |
 | `update_entities` | additive + tombstone |
+| `update_observations` | additive + tombstone |
 | `update_relations` | additive + tombstone |
+| `merge_entities` | additive + tombstone |
+| `read_conflicts` | read |
 
-The nine official tools are drop-in. `update_entities` and `update_relations` are extensions the
-official server does not have: an edit is a tombstone of what it replaces plus an add of what it
-becomes, so they introduce no operation type and leave the nine unchanged.
+The nine official tools are drop-in. The `update_*`, `merge_entities` and `read_conflicts`
+extensions are additions the official server does not have: an edit or a merge is a tombstone of
+what it replaces plus an add of what it becomes, so they introduce no operation type and leave the
+nine unchanged. `read_graph`/`search_nodes` take optional paging (and a type filter) that default to
+the official behaviour.
 
 The full graph is also served at the `memory://knowledge-graph` resource: on the 2025-era protocol a
 client subscribes with `resources/subscribe` and receives `notifications/resources/updated` after

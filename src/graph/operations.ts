@@ -239,6 +239,23 @@ export function elementEffect(op: Operation): ElementEffect {
   }
 }
 
+/** A human-readable label for the element an operation targets, for a conflict report. */
+export function describeElement(op: Operation): string {
+  switch (op.type) {
+    case "entity.create":
+    case "entity.delete":
+      return `entity "${op.name}"`
+    case "observation.add":
+    case "observation.delete":
+      return `observation "${op.entityName}" "${op.content}"`
+    case "relation.add":
+    case "relation.delete":
+      return `relation "${op.from}" -> "${op.to}" : ${op.relationType}`
+    case "shard.compact":
+      return `shard "${op.node}"`
+  }
+}
+
 /** The compaction generation a `shard.compact` operation records (0 otherwise). */
 export function generationOf(op: Operation): number {
   return op.type === "shard.compact" ? op.generation : 0

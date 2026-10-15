@@ -226,6 +226,57 @@ describe("memory MCP server", () => {
     })
   })
 
+  it("gives every tool a description and the annotations it should carry", async () => {
+    const client = start()
+    await client.initialize()
+    const tools = result<{
+      tools: { name: string; description?: string; annotations?: Record<string, boolean> }[]
+    }>(await client.request("tools/list")).tools
+
+    for (const tool of tools) {
+      expect(tool.description?.trim(), `${tool.name} has no description`).toBeTruthy()
+    }
+
+    const byName = new Map(tools.map((tool) => [tool.name, tool]))
+    const expected: Record<string, { readOnlyHint: boolean; destructiveHint: boolean }> = {}
+    for (const name of ["read_graph", "search_nodes", "open_nodes", "read_conflicts"]) {
+      expected[name] = { readOnlyHint: true, destructiveHint: false }
+    }
+    for (const name of ["create_entities", "create_relations", "add_observations"]) {
+      expected[name] = { readOnlyHint: false, destructiveHint: false }
+    }
+    for (const name of [
+      "delete_entities",
+      "delete_observations",
+      "delete_relations",
+      "update_entities",
+      "update_observations",
+      "update_relations",
+      "merge_entities",
+    ]) {
+      expected[name] = { readOnlyHint: false, destructiveHint: true }
+    }
+    expect([...byName.keys()].sort()).toEqual(Object.keys(expected).sort())
+    for (const [name, annotations] of Object.entries(expected)) {
+      expect(byName.get(name)?.annotations, name).toMatchObject(annotations)
+    }
+  })
+
+  it("names the extension tools in the instructions it hands the model", async () => {
+    const client = start()
+    const response = result<{ instructions?: string }>(await client.initialize())
+    for (const name of [
+      "update_entities",
+      "update_observations",
+      "update_relations",
+      "merge_entities",
+      "read_conflicts",
+      "limit",
+    ]) {
+      expect(response.instructions, name).toContain(name)
+    }
+  })
+
   it("lists exactly the registered tools in the README", async () => {
     const client = start()
     await client.initialize()

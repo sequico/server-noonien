@@ -14,7 +14,9 @@ version and its date.
   the official nine have no operation for.
 - Add `update_observations` (replace an observation content), `merge_entities` (union two entities,
   repointing their relations) and `read_conflicts` (the elements more than one node wrote) as further
-  extensions, and give `read_graph`/`search_nodes` an optional page and entity-type filter.
+  extensions, and give `read_graph`/`search_nodes` an optional page and entity-type filter. The
+  server's `instructions` name them and each description says what it replaces, so a model reaches
+  for an update or a merge instead of composing delete + create.
 - Re-probe a discovery candidate as soon as a refresh proposes it again, so a peer that moved port is
   adopted at once, and warn when `NOONIEND_ADVERTISE` and `NOONIEND_LISTEN` disagree on the port.
 - Change the default `nooniend` listen port to `27878`, the IANA user port the service is being

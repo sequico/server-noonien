@@ -634,6 +634,10 @@ The same nine tools ([Tools](#tools)), so it slots under the `memory` server nam
 changes. The extension tools sit beside them: a client written for the official server never calls
 them and never notices they are there.
 
+The `initialize` result also carries `instructions` naming the extension tools and when to prefer
+them over composing `delete_*` + `create_*` (and each extension's description says what it replaces).
+A model already knows the nine official tools, and a tool it does not know it will not call.
+
 The full graph is also exposed at the `memory://knowledge-graph` resource. The resource is
 read-only; clients can subscribe to it and receive `notifications/resources/updated` whenever a
 mutation changes the graph — via `resources/subscribe` on the 2025-era protocol, or a

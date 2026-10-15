@@ -26,6 +26,19 @@ function fail(message) {
   process.exit(1)
 }
 
+/** One JSON-RPC line, or `undefined` for a blank or non-JSON one. */
+function parseLine(line) {
+  const trimmed = line.trim()
+  if (trimmed === "") {
+    return undefined
+  }
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    return undefined
+  }
+}
+
 /** Read one tool list from the built server by speaking stdio JSON-RPC to it. */
 function introspect(entry) {
   return new Promise((resolve, reject) => {
@@ -37,30 +50,27 @@ function introspect(entry) {
       reject(new Error("the server did not answer tools/list"))
     }, 30_000)
     child.on("error", reject)
+    const handle = (message) => {
+      if (message === undefined) {
+        return
+      }
+      if (message.id === 1 && message.result !== undefined) {
+        send({ jsonrpc: "2.0", method: "notifications/initialized" })
+        send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })
+      }
+      if (message.id === 2 && message.result !== undefined) {
+        clearTimeout(timer)
+        child.kill()
+        resolve(message.result.tools)
+      }
+    }
     child.stdout.on("data", (chunk) => {
       buffer += chunk
       let newline = buffer.indexOf("\n")
       while (newline >= 0) {
-        const line = buffer.slice(0, newline).trim()
+        handle(parseLine(buffer.slice(0, newline)))
         buffer = buffer.slice(newline + 1)
         newline = buffer.indexOf("\n")
-        if (line === "") {
-          continue
-        }
-        let message
-        try {
-          message = JSON.parse(line)
-        } catch {
-          continue
-        }
-        if (message.id === 1 && message.result !== undefined) {
-          send({ jsonrpc: "2.0", method: "notifications/initialized" })
-          send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })
-        } else if (message.id === 2 && message.result !== undefined) {
-          clearTimeout(timer)
-          child.kill()
-          resolve(message.result.tools)
-        }
       }
     })
     send({
@@ -142,9 +152,11 @@ form.append(
 )
 form.append("bundle", new Blob([readFileSync(bundle)]), "bundle.mcpb")
 
+const headers = new Headers()
+headers.set("Authorization", `Bearer ${token}`)
 const response = await fetch(
   `https://api.smithery.ai/servers/${encodeURIComponent(server)}/releases`,
-  { method: "PUT", headers: { Authorization: `Bearer ${token}` }, body: form },
+  { method: "PUT", headers, body: form },
 )
 const body = await response.text()
 if (!response.ok) {

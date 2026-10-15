@@ -32,9 +32,13 @@ const annotationsDelete = {
   openWorldHint: false,
 } as const
 
-// An update tombstones what it replaces (the old name, the old relation key), so
-// it is destructive; writing the same value again is a no-op but writing a change
-// twice is not a repeat, so it is not advertised as idempotent.
+// An edit tombstones what it replaces — the old name, the old relation key, the old
+// content — so `destructiveHint` stays true: the MCP definition of `false` is *only
+// additive updates*, which this is not, and the hint's job is to warn, not to be
+// pleasant. Keeping the tool attractive is the description's job and the server
+// instructions' job; a false hint would just move the surprise to the caller. It is not
+// advertised as idempotent either: writing the same value again is a no-op, but writing
+// a change twice is not a repeat.
 const annotationsUpdate = {
   readOnlyHint: false,
   destructiveHint: true,
@@ -136,7 +140,7 @@ export function registerMemoryTools(
     {
       title: "Update Entities",
       description:
-        "Rename existing entities and/or change their entity type, keeping their observations and relations",
+        "Prefer this to deleting an entity and re-creating it under another name: rename existing entities and/or change their entity type, keeping their observations and relations",
       inputSchema: z.object({
         entities: z.array(
           z.object({
@@ -179,7 +183,8 @@ export function registerMemoryTools(
     "update_observations",
     {
       title: "Update Observations",
-      description: "Replace observation contents on existing entities in the knowledge graph",
+      description:
+        "Prefer this to delete_observations followed by add_observations: replace observation contents on existing entities in place",
       inputSchema: z.object({
         updates: z.array(
           z.object({
@@ -217,7 +222,7 @@ export function registerMemoryTools(
     {
       title: "Update Relations",
       description:
-        "Change the type of existing relations and/or repoint their endpoints, between entities in the knowledge graph",
+        "Prefer this to deleting a relation and creating another: change the type of existing relations and/or repoint their endpoints",
       inputSchema: z.object({
         relations: z.array(
           z.object({
@@ -267,7 +272,7 @@ export function registerMemoryTools(
     {
       title: "Merge Entities",
       description:
-        "Merge an entity into another: the union of their observations, its relations repointed, the merged entity deleted",
+        "Prefer this to deleting one entity and re-adding its observations and relations to another: merge an entity into another, unioning their observations and repointing its relations",
       inputSchema: z.object({
         merges: z.array(
           z.object({
@@ -479,7 +484,7 @@ export function registerMemoryTools(
     {
       title: "Read Conflicts",
       description:
-        "List the elements more than one node has written, with their authors: a concurrent edit the last-writer-wins fold resolved in silence",
+        "Call this when a write may have been superseded by another machine, or before trusting an edit: it lists the elements more than one node has written, with their authors, so a last-writer-wins resolution is visible instead of silent",
       inputSchema: z.object({}),
       outputSchema: z.object({
         conflicts: z.array(
@@ -569,9 +574,29 @@ function registerGraphSubscriptions(server: McpServer): () => void {
   }
 }
 
+/**
+ * What the model is told about this surface, in the `initialize` result. A model already
+ * knows the nine official tools and reaches for `delete_*` + `create_*` by habit, so the
+ * value of an edit — and of `read_conflicts` in particular — has to be stated where the
+ * client reads it, not only in each tool's own description.
+ */
+export const INSTRUCTIONS =
+  "Shared, conflict-free knowledge-graph memory — entities with observations, and typed " +
+  "relations between them — converged across machines without a server. The nine memory " +
+  "tools behave as in @modelcontextprotocol/server-memory. To change what already exists, do " +
+  "not compose delete + create: rename an entity or change its type with update_entities, " +
+  "replace an observation content with update_observations, change a relation's type or " +
+  "endpoints with update_relations, and combine two entities with merge_entities. When a " +
+  "write may have been superseded by another machine, read_conflicts lists the elements more " +
+  "than one node wrote. For a large graph, page read_graph and search_nodes with " +
+  "limit/offset, and filter search_nodes by entityType."
+
 /** Build a fully wired memory MCP server. */
 export function createMemoryServer(graph: MemoryGraph, serverInfo: Implementation): McpServer {
-  const server = new McpServer(serverInfo, { capabilities: { tools: {}, resources: {} } })
+  const server = new McpServer(serverInfo, {
+    capabilities: { tools: {}, resources: {} },
+    instructions: INSTRUCTIONS,
+  })
   const notify = registerGraphSubscriptions(server)
   registerMemoryTools(server, graph, notify)
   return server

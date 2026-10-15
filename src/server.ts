@@ -32,14 +32,26 @@ const annotationsDelete = {
   openWorldHint: false,
 } as const
 
+// An update tombstones what it replaces (the old name, the old relation key), so
+// it is destructive; writing the same value again is a no-op but writing a change
+// twice is not a repeat, so it is not advertised as idempotent.
+const annotationsUpdate = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: false,
+} as const
+
 function textResult(text: string): { type: "text"; text: string } {
   return { type: "text", text }
 }
 
 /**
- * Register the nine drop-in memory tools and the knowledge-graph resource on a
- * server, backed by the given graph. Names, inputs, outputs, messages and
- * annotations mirror `@modelcontextprotocol/server-memory` exactly. `onMutate`
+ * Register the nine drop-in memory tools, the two update extensions and the
+ * knowledge-graph resource on a server, backed by the given graph. The nine
+ * names, inputs, outputs, messages and annotations mirror
+ * `@modelcontextprotocol/server-memory` exactly; `update_entities` and
+ * `update_relations` are additions the official server does not have. `onMutate`
  * runs after every successful mutation so the server can notify subscribers.
  */
 export function registerMemoryTools(
@@ -111,6 +123,100 @@ export function registerMemoryTools(
     },
     async ({ observations }) => {
       const results = await graph.addObservations(observations)
+      onMutate()
+      return {
+        content: [textResult(JSON.stringify(results, null, 2))],
+        structuredContent: { results },
+      }
+    },
+  )
+
+  server.registerTool(
+    "update_entities",
+    {
+      title: "Update Entities",
+      description:
+        "Rename existing entities and/or change their entity type, keeping their observations and relations",
+      inputSchema: z.object({
+        entities: z.array(
+          z.object({
+            name: z.string().describe("The current name of the entity to update"),
+            newName: z
+              .string()
+              .optional()
+              .describe("The new name to rename the entity to; omit to keep the current name"),
+            entityType: z
+              .string()
+              .optional()
+              .describe("The new entity type; omit to keep the current type"),
+          }),
+        ),
+      }),
+      outputSchema: z.object({
+        results: z.array(
+          z.object({
+            name: z.string(),
+            renamedTo: z.string().optional(),
+            entityType: z.string().optional(),
+            updated: z.boolean(),
+            reason: z.string().optional(),
+          }),
+        ),
+      }),
+      annotations: annotationsUpdate,
+    },
+    async ({ entities }) => {
+      const { results } = await graph.updateEntities(entities)
+      onMutate()
+      return {
+        content: [textResult(JSON.stringify(results, null, 2))],
+        structuredContent: { results },
+      }
+    },
+  )
+
+  server.registerTool(
+    "update_relations",
+    {
+      title: "Update Relations",
+      description:
+        "Change the type of existing relations and/or repoint their endpoints, between entities in the knowledge graph",
+      inputSchema: z.object({
+        relations: z.array(
+          z.object({
+            from: z.string().describe("The name of the entity where the relation starts"),
+            to: z.string().describe("The name of the entity where the relation ends"),
+            relationType: z.string().describe("The type of the relation"),
+            newFrom: z
+              .string()
+              .optional()
+              .describe("The new start entity; omit to keep the current one"),
+            newTo: z
+              .string()
+              .optional()
+              .describe("The new end entity; omit to keep the current one"),
+            newRelationType: z
+              .string()
+              .optional()
+              .describe("The new relation type; omit to keep the current one"),
+          }),
+        ),
+      }),
+      outputSchema: z.object({
+        results: z.array(
+          z.object({
+            from: z.string(),
+            to: z.string(),
+            relationType: z.string(),
+            updated: z.boolean(),
+            reason: z.string().optional(),
+          }),
+        ),
+      }),
+      annotations: annotationsUpdate,
+    },
+    async ({ relations }) => {
+      const { results } = await graph.updateRelations(relations)
       onMutate()
       return {
         content: [textResult(JSON.stringify(results, null, 2))],

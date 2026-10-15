@@ -36,6 +36,9 @@ const OFFICIAL_TOOLS = [
   "open_nodes",
 ]
 
+/** Additions the official server does not have. */
+const EXTENSION_TOOLS = ["update_entities", "update_relations"]
+
 describe("memory MCP server", () => {
   it("reports only the package name and version in serverInfo", async () => {
     const client = start()
@@ -44,11 +47,13 @@ describe("memory MCP server", () => {
     expect(response.serverInfo["name"]).toBe("server-noonien")
   })
 
-  it("advertises the nine drop-in tools", async () => {
+  it("advertises the nine drop-in tools plus the update extensions", async () => {
     const client = start()
     await client.initialize()
     const tools = result<{ tools: { name: string }[] }>(await client.request("tools/list")).tools
-    expect(tools.map((tool) => tool.name).sort()).toEqual([...OFFICIAL_TOOLS].sort())
+    expect(tools.map((tool) => tool.name).sort()).toEqual(
+      [...OFFICIAL_TOOLS, ...EXTENSION_TOOLS].sort(),
+    )
   })
 
   it("creates entities and reads them back", async () => {
@@ -197,6 +202,105 @@ describe("memory MCP server", () => {
     })
     expect((await client.callTool("open_nodes", { names: ["Bob"] })).structuredContent).toEqual({
       entities: [bob],
+      relations: [],
+    })
+  })
+
+  it("renames an entity, moving its observations and relations", async () => {
+    const client = start()
+    await client.initialize()
+    await client.callTool("create_entities", {
+      entities: [
+        { name: "Ada", entityType: "person", observations: ["math"] },
+        { name: "Bob", entityType: "person", observations: [] },
+      ],
+    })
+    await client.callTool("create_relations", {
+      relations: [{ from: "Ada", to: "Bob", relationType: "knows" }],
+    })
+
+    const updated = await client.callTool("update_entities", {
+      entities: [{ name: "Ada", newName: "Ada Lovelace", entityType: "mathematician" }],
+    })
+    expect(updated.structuredContent).toEqual({
+      results: [
+        { name: "Ada", renamedTo: "Ada Lovelace", entityType: "mathematician", updated: true },
+      ],
+    })
+    expect((await client.callTool("read_graph")).structuredContent).toEqual({
+      entities: [
+        { name: "Ada Lovelace", entityType: "mathematician", observations: ["math"] },
+        { name: "Bob", entityType: "person", observations: [] },
+      ],
+      relations: [{ from: "Ada Lovelace", to: "Bob", relationType: "knows" }],
+    })
+  })
+
+  it("updates an entity type alone and a relation type", async () => {
+    const client = start()
+    await client.initialize()
+    await client.callTool("create_entities", {
+      entities: [
+        { name: "Ada", entityType: "person", observations: [] },
+        { name: "Bob", entityType: "person", observations: [] },
+      ],
+    })
+    await client.callTool("create_relations", {
+      relations: [{ from: "Ada", to: "Bob", relationType: "knows" }],
+    })
+
+    expect(
+      (
+        await client.callTool("update_entities", {
+          entities: [{ name: "Ada", entityType: "engineer" }],
+        })
+      ).structuredContent,
+    ).toEqual({ results: [{ name: "Ada", entityType: "engineer", updated: true }] })
+    expect(
+      (
+        await client.callTool("update_relations", {
+          relations: [
+            { from: "Ada", to: "Bob", relationType: "knows", newRelationType: "mentors" },
+          ],
+        })
+      ).structuredContent,
+    ).toEqual({ results: [{ from: "Ada", to: "Bob", relationType: "knows", updated: true }] })
+    expect((await client.callTool("read_graph")).structuredContent).toEqual({
+      entities: [
+        { name: "Ada", entityType: "engineer", observations: [] },
+        { name: "Bob", entityType: "person", observations: [] },
+      ],
+      relations: [{ from: "Ada", to: "Bob", relationType: "mentors" }],
+    })
+  })
+
+  it("refuses a rename onto an existing entity and reports a missing one", async () => {
+    const client = start()
+    await client.initialize()
+    await client.callTool("create_entities", {
+      entities: [
+        { name: "Ada", entityType: "person", observations: [] },
+        { name: "Bob", entityType: "person", observations: [] },
+      ],
+    })
+
+    const updated = await client.callTool("update_entities", {
+      entities: [
+        { name: "Ada", newName: "Bob" },
+        { name: "Ghost", newName: "Ghost II" },
+      ],
+    })
+    expect(updated.structuredContent).toEqual({
+      results: [
+        { name: "Ada", updated: false, reason: 'entity "Bob" already exists' },
+        { name: "Ghost", updated: false, reason: "entity not found" },
+      ],
+    })
+    expect((await client.callTool("read_graph")).structuredContent).toEqual({
+      entities: [
+        { name: "Ada", entityType: "person", observations: [] },
+        { name: "Bob", entityType: "person", observations: [] },
+      ],
       relations: [],
     })
   })

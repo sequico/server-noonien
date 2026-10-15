@@ -12,9 +12,6 @@ version and its date.
 - Add `update_entities` (rename an entity and/or change its type, keeping its observations and its
   relations) and `update_relations` (change a relation's type or repoint its endpoints) — the edits
   the official nine have no operation for.
-
-## 1.0.3 (2026-10-16)
-
 - Change the default `nooniend` listen port to `27878`, the IANA user port the service is being
   registered for. A mesh must run one port on every node — a discovery seed carries none and takes
   the dialer's own — so upgrade the nodes together, or pin `NOONIEND_LISTEN` while they are mixed.

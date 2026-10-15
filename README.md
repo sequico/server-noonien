@@ -83,7 +83,8 @@ tool surface:
 - **Local-first and offline-friendly.** Every node reads and writes its own shard on disk and keeps
   a full local replica, so it keeps working offline; the mesh reconverges when the network returns.
 - **Drop-in for the official server.** The same nine tools, inputs and outputs, so it slots under
-  the `memory` server name with no agent changes.
+  the `memory` server name with no agent changes — plus `update_entities` and `update_relations`,
+  the edits the official nine have no operation for.
 
 ## Comparison
 
@@ -97,7 +98,7 @@ tool surface:
 | Needs a cloud account | No | No | Yes |
 | Works offline | Yes (`file` backend) | Yes | No |
 | Storage | Folder or S3-compatible bucket, your choice | One JSONL file | Their cloud |
-| Drop-in for the official tools | Yes — same nine tools | — | No |
+| Drop-in for the official tools | Yes — same nine, plus two update tools | — | No |
 | Migration | `noonien import memory.jsonl` | — | Export/import dance |
 | Model | Explicit knowledge graph | Explicit knowledge graph | Often vector/semantic |
 | License | MPL-2.0 | MIT | Proprietary |
@@ -599,7 +600,9 @@ maintenance, its `noonien_mcp_*` counters (`noonien_mcp_folds_total`, `noonien_m
 ## Tools
 
 The MCP surface is the official nine, drop-in: names, inputs, outputs and messages match
-`@modelcontextprotocol/server-memory`.
+`@modelcontextprotocol/server-memory`. Two extensions the official server does not have — an entity
+and a relation can be edited, not only created and deleted — are added on top; the nine are never
+changed.
 
 | Tool | Does |
 | --- | --- |
@@ -612,11 +615,14 @@ The MCP surface is the official nine, drop-in: names, inputs, outputs and messag
 | `read_graph` | read the entire knowledge graph |
 | `search_nodes` | search nodes by a query, matched against entity names, types and observation content |
 | `open_nodes` | open specific nodes by their names |
+| `update_entities` | rename existing entities and/or change their entity type, moving their observations and relations |
+| `update_relations` | change the type of existing relations and/or repoint their endpoints |
 
 ## Drop-in compatibility
 
 The same nine tools ([Tools](#tools)), so it slots under the `memory` server name with no agent
-changes.
+changes. The two `update_*` extensions sit beside them: a client written for the official server
+never calls them and never notices they are there.
 
 The full graph is also exposed at the `memory://knowledge-graph` resource. The resource is
 read-only; clients can subscribe to it and receive `notifications/resources/updated` whenever a
@@ -631,6 +637,15 @@ removes every occurrence of that content. Relations are sets: adding the same re
 effect. `delete_entities` also removes the entity's observations and its incident relations. The
 tombstones cover what the deleting node could see: an observation added concurrently on another node
 survives as an element, so if the entity is later created again that observation reappears with it.
+
+`update_entities` renames an entity and/or changes its type, and `update_relations` changes a
+relation's type or endpoints. An edit is a tombstone plus an add, like every other mutation: a
+rename tombstones the old name together with its observations (so re-creating the old name cannot
+revive them) and re-creates the entity under the new name with the same observations and incident
+relations, repointed. A rename onto an existing name is refused rather than merging the two
+entities, and the endpoints of an updated relation must exist, as they must for a creation. A
+rename that another node contests — or two renames in one call that touch the same relation —
+settles per element by last-writer-wins, exactly like the rest of the graph.
 
 ## Security
 

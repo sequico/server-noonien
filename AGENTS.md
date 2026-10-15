@@ -19,6 +19,9 @@ All repository content — code, identifiers, comments, docs and commit messages
 
 - Expose the same nine tools as `@modelcontextprotocol/server-memory`, with the same names, inputs
   and outputs. Agents must be able to swap the server name without changing anything else.
+- Extensions beyond the nine are allowed as long as the nine stay exact — same names, inputs,
+  outputs and messages — and never depend on them. `update_entities` and `update_relations` are the
+  current two.
 - Any behaviour change must be reflected in tests and in the README.
 
 ## CRDT semantics

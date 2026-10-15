@@ -28,7 +28,8 @@ test` (Vitest) and `npm run build` (tsc → `dist/`).
 ## Making a change
 
 1. Keep the drop-in contract: the same nine tools as `@modelcontextprotocol/server-memory`, with the
-   same names, inputs and outputs.
+   same names, inputs and outputs. Extensions are allowed alongside them as long as the nine stay
+   exact; `update_entities` and `update_relations` are the current two.
 2. Model behaviour as CRDT operations — additive or tombstone, never an in-place mutation — and add
    or extend the property tests when a change touches merge, serialization or ordering.
 3. Add unit tests for the logic, keep the tree clean (no leftover files), and do not commit

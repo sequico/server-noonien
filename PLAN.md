@@ -224,6 +224,12 @@ on a specific provider.
 | `read_graph` | read |
 | `search_nodes` | read |
 | `open_nodes` | read |
+| `update_entities` | additive + tombstone |
+| `update_relations` | additive + tombstone |
+
+The nine official tools are drop-in. `update_entities` and `update_relations` are extensions the
+official server does not have: an edit is a tombstone of what it replaces plus an add of what it
+becomes, so they introduce no operation type and leave the nine unchanged.
 
 The full graph is also served at the `memory://knowledge-graph` resource: on the 2025-era protocol a
 client subscribes with `resources/subscribe` and receives `notifications/resources/updated` after
@@ -264,7 +270,8 @@ through environment variables: the shared `NOONIEN_DIR` and `NOONIEN_NODE_ID` pl
   cache, HLC ordering, cross-shard compaction and the case where a peer recovers the local shard
   while the server is running.
 - Integration tests that drive the real serving entry (`serveStdio`) over an in-memory transport and
-  assert the nine-tool contract, including the official outputs and messages.
+  assert the nine-tool drop-in contract plus the two update extensions, including the official
+  outputs and messages.
 - Migration round-trip from an official `memory.jsonl`.
 - Gossip: unit tests for the replica store, membership, bootstrap, configuration (including the
   membership TTL forget and the revocation list), the seeded sampler and the shard digest; a
@@ -341,8 +348,8 @@ ES modules and inline SVG; no bundler and no framework in the toolchain or the r
 
 ## Current state
 
-- **Core CRDT and the `file` backend** — an append-only operation log, the fold, and the nine
-  drop-in tools over stdio.
+- **Core CRDT and the `file` backend** — an append-only operation log, the fold, the nine drop-in
+  tools over stdio and the `update_entities`/`update_relations` extensions.
 - **Maintenance CLI** (`noonien`) — `serve`, `import`, `export`, `merge`, `compact`, `query`,
   `help`; `import` migrates an official `memory.jsonl`.
 - **S3 backend** — shards as objects written with versioned conditional writes that are retried on

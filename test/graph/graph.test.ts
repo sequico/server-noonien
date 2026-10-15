@@ -175,6 +175,7 @@ describe("MemoryGraph", () => {
   it("renames an entity, moving its observations and relations", async () => {
     const graph = newGraph()
     await seed(graph)
+    const before = await graph.readGraph()
     expect(
       await graph.updateEntities([
         { name: "Ada", newName: "Ada Lovelace", entityType: "mathematician" },
@@ -191,6 +192,33 @@ describe("MemoryGraph", () => {
       ],
       relations: [{ from: "Ada Lovelace", to: "Bob", relationType: "knows" }],
     })
+    // The rename must not touch the objects a previous read returned.
+    expect(before.entities[0]?.name).toBe("Ada")
+    expect(before.relations[0]?.from).toBe("Ada")
+  })
+
+  it("keeps a rename intact across an online compaction", async () => {
+    const backend = new MemoryBackend()
+    // Compact on every append, so the rename's operations are rewritten as soon
+    // as they land.
+    const graph = new MemoryGraph(new ShardLog(backend, "node"), undefined, { compactAfter: 1 })
+    await seed(graph)
+    await graph.updateEntities([{ name: "Ada", newName: "Ada Lovelace" }])
+    expect(await graph.readGraph()).toEqual({
+      entities: [
+        { name: "Ada Lovelace", entityType: "person", observations: ["mathematician"] },
+        { name: "Bob", entityType: "person", observations: ["engineer"] },
+      ],
+      relations: [{ from: "Ada Lovelace", to: "Bob", relationType: "knows" }],
+    })
+    // The tombstone of the old name survived the rewrite: re-creating it does not
+    // revive the observations the rename moved away.
+    await graph.createEntities([{ name: "Ada", entityType: "person", observations: [] }])
+    expect((await graph.readGraph()).entities).toEqual([
+      { name: "Ada", entityType: "person", observations: [] },
+      { name: "Ada Lovelace", entityType: "person", observations: ["mathematician"] },
+      { name: "Bob", entityType: "person", observations: ["engineer"] },
+    ])
   })
 
   it("does not revive the old name's observations when it is created again", async () => {
@@ -298,6 +326,25 @@ describe("MemoryGraph", () => {
     })
     expect((await graph.readGraph()).relations).toEqual([
       { from: "Bob", to: "Ada", relationType: "mentors" },
+    ])
+  })
+
+  it("removes the old edge when a repoint lands on an existing relation", async () => {
+    const graph = newGraph()
+    await seed(graph)
+    await graph.createEntities([{ name: "Carol", entityType: "person", observations: [] }])
+    await graph.createRelations([{ from: "Ada", to: "Carol", relationType: "knows" }])
+    // The target key already exists, so the edit's add is a set-add and only the
+    // old edge goes: a relation is a set, so nothing else is lost.
+    expect(
+      await graph.updateRelations([
+        { from: "Ada", to: "Carol", relationType: "knows", newTo: "Bob" },
+      ]),
+    ).toEqual({
+      results: [{ from: "Ada", to: "Carol", relationType: "knows", updated: true }],
+    })
+    expect((await graph.readGraph()).relations).toEqual([
+      { from: "Ada", to: "Bob", relationType: "knows" },
     ])
   })
 

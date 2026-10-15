@@ -39,6 +39,45 @@ export interface DeleteRelationsResult {
   readonly deletedCount: number
 }
 
+export interface UpdateEntityInput {
+  readonly name: string
+  readonly newName?: string | undefined
+  readonly entityType?: string | undefined
+}
+
+export interface UpdatedEntity {
+  readonly name: string
+  readonly renamedTo?: string
+  readonly entityType?: string
+  readonly updated: boolean
+  readonly reason?: string
+}
+
+export interface UpdateEntitiesResult {
+  readonly results: readonly UpdatedEntity[]
+}
+
+export interface UpdateRelationInput {
+  readonly from: string
+  readonly to: string
+  readonly relationType: string
+  readonly newFrom?: string | undefined
+  readonly newTo?: string | undefined
+  readonly newRelationType?: string | undefined
+}
+
+export interface UpdatedRelation {
+  readonly from: string
+  readonly to: string
+  readonly relationType: string
+  readonly updated: boolean
+  readonly reason?: string
+}
+
+export interface UpdateRelationsResult {
+  readonly results: readonly UpdatedRelation[]
+}
+
 export interface MemoryGraphOptions {
   /** Compact the local shard online after this many appended operations (0 disables). */
   readonly compactAfter?: number
@@ -117,6 +156,130 @@ function planAdditions(
     present.add(content)
   }
   return { entityName: input.entityName, addedObservations: added }
+}
+
+/**
+ * Queue one `observation.add` per occurrence, each at its own slot, so a content
+ * repeated in the list stays as many distinct elements as it was written with.
+ */
+function observationAddDrafts(
+  drafts: OperationDraft[],
+  entityName: string,
+  observations: readonly string[],
+): void {
+  const slots = new Map<string, number>()
+  for (const content of observations) {
+    const slot = slots.get(content) ?? 0
+    slots.set(content, slot + 1)
+    drafts.push({ type: "observation.add", entityName, content, slot })
+  }
+}
+
+/**
+ * The drafts of a rename: tombstone the old entity together with its observations
+ * (so a later re-creation of the old name cannot revive them) and repoint every
+ * incident relation to the new endpoint. The additive counterpart — the new
+ * entity and its observations — is queued by the caller. The repointed relation
+ * replaces the old one in `relations`, the working list, so a later entry of the
+ * same batch sees the endpoint it just moved.
+ */
+function renameDrafts(
+  drafts: OperationDraft[],
+  entity: Entity,
+  newName: string,
+  relations: Relation[],
+): void {
+  for (const content of new Set(entity.observations)) {
+    drafts.push({ type: "observation.delete", entityName: entity.name, content })
+  }
+  drafts.push({ type: "entity.delete", name: entity.name })
+  for (const [index, relation] of relations.entries()) {
+    if (relation.from !== entity.name && relation.to !== entity.name) {
+      continue
+    }
+    drafts.push({ type: "relation.delete", ...relation })
+    const repointed = {
+      from: relation.from === entity.name ? newName : relation.from,
+      to: relation.to === entity.name ? newName : relation.to,
+      relationType: relation.relationType,
+    }
+    relations[index] = repointed
+    drafts.push({ type: "relation.add", ...repointed })
+  }
+}
+
+/**
+ * Plan one entity update against the working view: a rename queues the tombstone
+ * drafts and the additive ones, a type-only change queues a new `entity.create`
+ * (the fold reads an entity's type from the latest create), and both update the
+ * working view so a later entry of the batch sees the result.
+ */
+function planEntityUpdate(
+  input: UpdateEntityInput,
+  relations: Relation[],
+  working: Map<string, Entity>,
+  drafts: OperationDraft[],
+): UpdatedEntity {
+  const entity = working.get(input.name)
+  if (entity === undefined) {
+    return { name: input.name, updated: false, reason: "entity not found" }
+  }
+  const newName = input.newName ?? input.name
+  const entityType = input.entityType ?? entity.entityType
+  const renamed = newName !== input.name
+  if (renamed && working.has(newName)) {
+    return { name: input.name, updated: false, reason: `entity "${newName}" already exists` }
+  }
+  if (renamed) {
+    renameDrafts(drafts, entity, newName, relations)
+  } else if (entityType === entity.entityType) {
+    return { name: input.name, entityType, updated: true }
+  }
+  drafts.push({ type: "entity.create", name: newName, entityType })
+  if (renamed) {
+    observationAddDrafts(drafts, newName, entity.observations)
+  }
+  working.delete(input.name)
+  working.set(newName, { name: newName, entityType, observations: [...entity.observations] })
+  return {
+    name: input.name,
+    ...(renamed ? { renamedTo: newName } : {}),
+    entityType,
+    updated: true,
+  }
+}
+
+/**
+ * Plan one relation update: verify the old key is present and the new endpoints
+ * exist, then queue the tombstone of the old key and the add of the new one (a
+ * no-op change queues nothing), updating the working set.
+ */
+function planRelationUpdate(
+  input: UpdateRelationInput,
+  names: ReadonlySet<string>,
+  working: Map<string, Relation>,
+  drafts: OperationDraft[],
+): UpdatedRelation {
+  const current = { from: input.from, to: input.to, relationType: input.relationType }
+  if (!working.has(relationKey(current))) {
+    return { ...current, updated: false, reason: "relation not found" }
+  }
+  const target = {
+    from: input.newFrom ?? input.from,
+    to: input.newTo ?? input.to,
+    relationType: input.newRelationType ?? input.relationType,
+  }
+  const missing = [target.from, target.to].find((name) => !names.has(name))
+  if (missing !== undefined) {
+    return { ...current, updated: false, reason: `entity "${missing}" not found` }
+  }
+  if (relationKey(target) !== relationKey(current)) {
+    working.delete(relationKey(current))
+    working.set(relationKey(target), target)
+    drafts.push({ type: "relation.delete", ...current })
+    drafts.push({ type: "relation.add", ...target })
+  }
+  return { ...current, updated: true }
 }
 
 /**
@@ -224,12 +387,7 @@ export class MemoryGraph {
           observations: [...entity.observations],
         })
         drafts.push({ type: "entity.create", name: entity.name, entityType: entity.entityType })
-        const slots = new Map<string, number>()
-        for (const content of entity.observations) {
-          const slot = slots.get(content) ?? 0
-          slots.set(content, slot + 1)
-          drafts.push({ type: "observation.add", entityName: entity.name, content, slot })
-        }
+        observationAddDrafts(drafts, entity.name, entity.observations)
       }
       await this.commit(drafts)
       return created
@@ -286,6 +444,48 @@ export class MemoryGraph {
       })
       await this.commit(drafts)
       return results
+    })
+  }
+
+  /**
+   * Rename an entity, change its type, or both — as additive and tombstone
+   * operations only. A rename tombstones the old name and its observations,
+   * creates the new one with the same observations and repoints every incident
+   * relation, so the graph is never mutated in place and the rename is one
+   * append. A rename onto an existing name is refused instead of silently
+   * merging the two entities; an unknown name is reported, not thrown, so a
+   * batch keeps its other entries.
+   */
+  async updateEntities(inputs: readonly UpdateEntityInput[]): Promise<UpdateEntitiesResult> {
+    return this.run(async () => {
+      const graph = await this.currentGraph()
+      // A working view so the entries of one batch see each other's effect and a
+      // collision with a name another entry just vacated is still detected.
+      const working = new Map(graph.entities.map((entity) => [entity.name, entity]))
+      const relations = [...graph.relations]
+      const drafts: OperationDraft[] = []
+      const results = inputs.map((input) => planEntityUpdate(input, relations, working, drafts))
+      await this.commit(drafts)
+      return { results }
+    })
+  }
+
+  /**
+   * Change a relation's type or its endpoints. A relation is a set element keyed
+   * by `(from, to, relationType)`, so an edit is a tombstone of the old key plus
+   * an add of the new one; the endpoints must exist, as they must for a creation.
+   * An unknown relation or missing endpoint is reported, not thrown, so a batch
+   * keeps its other entries.
+   */
+  async updateRelations(inputs: readonly UpdateRelationInput[]): Promise<UpdateRelationsResult> {
+    return this.run(async () => {
+      const graph = await this.currentGraph()
+      const names = new Set(graph.entities.map((entity) => entity.name))
+      const working = new Map(graph.relations.map((relation) => [relationKey(relation), relation]))
+      const drafts: OperationDraft[] = []
+      const results = inputs.map((input) => planRelationUpdate(input, names, working, drafts))
+      await this.commit(drafts)
+      return { results }
     })
   }
 

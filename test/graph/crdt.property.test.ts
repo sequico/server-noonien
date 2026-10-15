@@ -139,6 +139,7 @@ type Step =
   | { kind: "rel"; from: string; to: string }
   | { kind: "unrel"; from: string; to: string }
   | { kind: "delobs"; name: string; content: string }
+  | { kind: "rename"; name: string; to: string }
 
 const stepArb: fc.Arbitrary<Step> = fc.oneof(
   fc.record({
@@ -152,6 +153,7 @@ const stepArb: fc.Arbitrary<Step> = fc.oneof(
   fc.record({ kind: fc.constant("rel" as const), from: nameArb, to: nameArb }),
   fc.record({ kind: fc.constant("unrel" as const), from: nameArb, to: nameArb }),
   fc.record({ kind: fc.constant("delobs" as const), name: nameArb, content: contentArb }),
+  fc.record({ kind: fc.constant("rename" as const), name: nameArb, to: nameArb }),
 )
 
 /** Apply a script the way a client would, ignoring the official "not found" rejections. */
@@ -178,6 +180,9 @@ async function play(graph: MemoryGraph, steps: readonly Step[]): Promise<void> {
           break
         case "delobs":
           await graph.deleteObservations([{ entityName: step.name, observations: [step.content] }])
+          break
+        case "rename":
+          await graph.updateEntities([{ name: step.name, newName: step.to }])
           break
       }
     } catch (error) {

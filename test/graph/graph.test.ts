@@ -172,6 +172,166 @@ describe("MemoryGraph", () => {
     expect((await graph.readGraph()).relations).toEqual([])
   })
 
+  it("renames an entity, moving its observations and relations", async () => {
+    const graph = newGraph()
+    await seed(graph)
+    expect(
+      await graph.updateEntities([
+        { name: "Ada", newName: "Ada Lovelace", entityType: "mathematician" },
+      ]),
+    ).toEqual({
+      results: [
+        { name: "Ada", renamedTo: "Ada Lovelace", entityType: "mathematician", updated: true },
+      ],
+    })
+    expect(await graph.readGraph()).toEqual({
+      entities: [
+        { name: "Ada Lovelace", entityType: "mathematician", observations: ["mathematician"] },
+        { name: "Bob", entityType: "person", observations: ["engineer"] },
+      ],
+      relations: [{ from: "Ada Lovelace", to: "Bob", relationType: "knows" }],
+    })
+  })
+
+  it("does not revive the old name's observations when it is created again", async () => {
+    const graph = newGraph()
+    await seed(graph)
+    await graph.updateEntities([{ name: "Ada", newName: "Ada Lovelace" }])
+    await graph.createEntities([{ name: "Ada", entityType: "person", observations: [] }])
+    expect((await graph.readGraph()).entities).toEqual([
+      { name: "Ada", entityType: "person", observations: [] },
+      { name: "Ada Lovelace", entityType: "person", observations: ["mathematician"] },
+      { name: "Bob", entityType: "person", observations: ["engineer"] },
+    ])
+  })
+
+  it("preserves duplicate observations across a rename", async () => {
+    const graph = newGraph()
+    await graph.createEntities([{ name: "Ada", entityType: "person", observations: ["x", "x"] }])
+    await graph.updateEntities([{ name: "Ada", newName: "Ada Lovelace" }])
+    expect((await graph.readGraph()).entities[0]?.observations).toEqual(["x", "x"])
+  })
+
+  it("changes an entity type alone, treating an unchanged value as applied", async () => {
+    const graph = newGraph()
+    await seed(graph)
+    expect(await graph.updateEntities([{ name: "Ada", entityType: "mathematician" }])).toEqual({
+      results: [{ name: "Ada", entityType: "mathematician", updated: true }],
+    })
+    expect((await graph.readGraph()).entities.map((entity) => entity.entityType)).toEqual([
+      "mathematician",
+      "person",
+    ])
+    // Nothing to change: reported as applied, and the observations are untouched.
+    expect(await graph.updateEntities([{ name: "Ada", entityType: "mathematician" }])).toEqual({
+      results: [{ name: "Ada", entityType: "mathematician", updated: true }],
+    })
+    expect((await graph.readGraph()).entities[0]?.observations).toEqual(["mathematician"])
+  })
+
+  it("is idempotent: repeating a rename changes nothing after the first", async () => {
+    const graph = newGraph()
+    await seed(graph)
+    await graph.updateEntities([{ name: "Ada", newName: "Ada Lovelace" }])
+    const before = await graph.readGraph()
+    expect(await graph.updateEntities([{ name: "Ada", newName: "Ada Lovelace" }])).toEqual({
+      results: [{ name: "Ada", updated: false, reason: "entity not found" }],
+    })
+    expect(await graph.readGraph()).toEqual(before)
+  })
+
+  it("refuses a rename onto an existing name and reports an unknown one", async () => {
+    const graph = newGraph()
+    await seed(graph)
+    expect(
+      await graph.updateEntities([
+        { name: "Ada", newName: "Bob" },
+        { name: "Ghost", newName: "Ghost II" },
+      ]),
+    ).toEqual({
+      results: [
+        { name: "Ada", updated: false, reason: 'entity "Bob" already exists' },
+        { name: "Ghost", updated: false, reason: "entity not found" },
+      ],
+    })
+    expect((await graph.readGraph()).entities.map((entity) => entity.name)).toEqual(["Ada", "Bob"])
+  })
+
+  it("applies a batch of renames, repointing relations across its entries", async () => {
+    const graph = newGraph()
+    await seed(graph)
+    expect(
+      await graph.updateEntities([
+        { name: "Ada", newName: "Temp" },
+        { name: "Bob", newName: "Ada" },
+      ]),
+    ).toEqual({
+      results: [
+        { name: "Ada", renamedTo: "Temp", entityType: "person", updated: true },
+        { name: "Bob", renamedTo: "Ada", entityType: "person", updated: true },
+      ],
+    })
+    expect((await graph.readGraph()).relations).toEqual([
+      { from: "Temp", to: "Ada", relationType: "knows" },
+    ])
+  })
+
+  it("updates a relation type and repoints its endpoints", async () => {
+    const graph = newGraph()
+    await seed(graph)
+    expect(
+      await graph.updateRelations([
+        { from: "Ada", to: "Bob", relationType: "knows", newRelationType: "mentors" },
+      ]),
+    ).toEqual({
+      results: [{ from: "Ada", to: "Bob", relationType: "knows", updated: true }],
+    })
+    expect((await graph.readGraph()).relations).toEqual([
+      { from: "Ada", to: "Bob", relationType: "mentors" },
+    ])
+    expect(
+      await graph.updateRelations([
+        { from: "Ada", to: "Bob", relationType: "mentors", newFrom: "Bob", newTo: "Ada" },
+      ]),
+    ).toEqual({
+      results: [{ from: "Ada", to: "Bob", relationType: "mentors", updated: true }],
+    })
+    expect((await graph.readGraph()).relations).toEqual([
+      { from: "Bob", to: "Ada", relationType: "mentors" },
+    ])
+  })
+
+  it("reports an unknown relation or a missing endpoint", async () => {
+    const graph = newGraph()
+    await seed(graph)
+    expect(
+      await graph.updateRelations([
+        { from: "Ada", to: "Ghost", relationType: "knows" },
+        { from: "Ada", to: "Bob", relationType: "knows", newTo: "Ghost" },
+      ]),
+    ).toEqual({
+      results: [
+        {
+          from: "Ada",
+          to: "Ghost",
+          relationType: "knows",
+          updated: false,
+          reason: "relation not found",
+        },
+        {
+          from: "Ada",
+          to: "Bob",
+          relationType: "knows",
+          updated: false,
+          reason: 'entity "Ghost" not found',
+        },
+      ],
+    })
+    expect((await graph.readGraph()).relations).toEqual([
+      { from: "Ada", to: "Bob", relationType: "knows" },
+    ])
+  })
+
   it("searches entities and includes relations touching the matches", async () => {
     const graph = newGraph()
     await seed(graph)

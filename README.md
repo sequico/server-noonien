@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/sequico/server-noonien/actions/workflows/ci.yml/badge.svg)](https://github.com/sequico/server-noonien/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/sequico/server-noonien/actions/workflows/codeql.yml/badge.svg)](https://github.com/sequico/server-noonien/actions/workflows/codeql.yml)
+[![Glama](https://glama.ai/mcp/servers/sequico/server-noonien/badges/score.svg)](https://glama.ai/mcp/servers/sequico/server-noonien)
 [![npm
 version](https://img.shields.io/npm/v/server-noonien.svg)](https://www.npmjs.com/package/server-noonien)
 [![License: MPL 2.0](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](LICENSE) [![Node ≥

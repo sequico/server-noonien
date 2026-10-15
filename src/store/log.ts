@@ -8,6 +8,7 @@ import type { Operation, OperationDraft } from "../graph/operations.js"
 import {
   compareOperations,
   elementEffect,
+  elementGroup,
   hlcOf,
   maxGeneration,
   OPERATION_VERSION,
@@ -184,7 +185,7 @@ const NO_COLLECTION: CollectionPlan = {
 function groupByElement(ops: readonly Operation[]): Map<string, Operation[]> {
   const byKey = new Map<string, Operation[]>()
   for (const op of ops) {
-    const key = foldGroup(op)
+    const key = elementGroup(op)
     const list = byKey.get(key)
     if (list === undefined) {
       byKey.set(key, [op])
@@ -193,23 +194,6 @@ function groupByElement(ops: readonly Operation[]): Map<string, Operation[]> {
     }
   }
   return byKey
-}
-
-/**
- * The group a collection reasons about: the fold element for entities and relations,
- * and the observation **content** for observations. An `observation.delete` is
- * content-level but keyed at slot `-1` while an add is keyed at its occurrence, so
- * grouping them by content is what lets a surviving occurrence keep the delete — the
- * per-key view would miss it and revive the observation.
- */
-function foldGroup(op: Operation): string {
-  switch (op.type) {
-    case "observation.add":
-    case "observation.delete":
-      return observationContentKey(op.entityName, op.content)
-    default:
-      return elementEffect(op).key
-  }
 }
 
 /** The last-writer-wins winner of a set of operations on one element. */
@@ -319,7 +303,7 @@ function collectionPlan(
 
 /** Whether one authored operation survives a rewrite under the collection plan. */
 function keep(op: Operation, index: ElementIndex, plan: CollectionPlan): boolean {
-  const key = foldGroup(op)
+  const key = elementGroup(op)
   if (plan.pinned.has(key)) {
     return true
   }

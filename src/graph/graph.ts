@@ -7,7 +7,7 @@ import type { Metrics } from "../metrics.js"
 import type { CollectionGuard, OperationLog, PruneResult } from "../store/log.js"
 import { foldOperations } from "./fold.js"
 import type { Operation, OperationDraft } from "./operations.js"
-import { describeElement, elementEffect, observationContentKey, relationKey } from "./operations.js"
+import { describeElement, elementGroup, observationContentKey, relationKey } from "./operations.js"
 import type { Entity, KnowledgeGraph, Relation } from "./types.js"
 
 export interface ObservationInput {
@@ -782,7 +782,9 @@ export class MemoryGraph {
     const ops = await this.log.read()
     const byKey = new Map<string, { element: string; authors: Set<string>; operations: number }>()
     for (const op of ops) {
-      const { key } = elementEffect(op)
+      // The same group the fold and the collection reason about, so an add and a
+      // content-level delete from two nodes count as one contested element.
+      const key = elementGroup(op)
       const entry = byKey.get(key) ?? {
         element: describeElement(op),
         authors: new Set<string>(),

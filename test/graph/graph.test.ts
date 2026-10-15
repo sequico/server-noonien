@@ -513,6 +513,32 @@ describe("MemoryGraph", () => {
     })
   })
 
+  it("counts an add and a content-level delete of one observation as one contested element", async () => {
+    const backendA = new MemoryBackend()
+    const backendB = new MemoryBackend()
+    const one = new MemoryGraph(new ShardLog(backendA, "n1"))
+    const two = new MemoryGraph(new ShardLog(backendB, "n2"))
+    await one.createEntities([{ name: "Ada", entityType: "person", observations: ["math"] }])
+    await one.addObservations([{ entityName: "Ada", contents: ["logic"] }])
+    await two.createEntities([
+      { name: "Ada", entityType: "person", observations: ["math", "logic"] },
+    ])
+    // Both nodes hold "logic", so this delete is a real competing operation, not a no-op.
+    await two.deleteObservations([{ entityName: "Ada", observations: ["logic"] }])
+    const shard = await backendB.read("n2.jsonl")
+    if (shard !== undefined) {
+      await backendA.append("n2.jsonl", shard)
+    }
+    // The add is keyed at its occurrence and the delete at the content level, but they are
+    // the same element to the fold — and so to the report.
+    const { conflicts } = await one.conflicts()
+    expect(conflicts).toContainEqual({
+      element: 'observation "Ada" "logic"',
+      authors: ["n1", "n2"],
+      operations: 3,
+    })
+  })
+
   it("searches entities and includes relations touching the matches", async () => {
     const graph = newGraph()
     await seed(graph)

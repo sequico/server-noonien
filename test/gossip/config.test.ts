@@ -45,6 +45,18 @@ describe("loadGossipConfig", () => {
     expect(stderrOf({ NOONIEND_LISTEN: "0.0.0.0:9000", NOONIEND_ADVERTISE: "host:9000" })).toBe("")
   })
 
+  it("refuses a hook URL that is not an http(s) URL", () => {
+    expect(() => loadGossipConfig({ NOONIEND_HOOK_URL: "not a url" })).toThrow(
+      "NOONIEND_HOOK_URL is not a URL",
+    )
+    expect(() => loadGossipConfig({ NOONIEND_HOOK_URL: "ftp://example/hook" })).toThrow(
+      "must be http or https",
+    )
+    expect(loadGossipConfig({ NOONIEND_HOOK_URL: "https://example/hook" }).hookUrl).toBe(
+      "https://example/hook",
+    )
+  })
+
   it("advertises an explicit listen address when one is configured", () => {
     const config = loadGossipConfig({ NOONIEND_LISTEN: "10.0.0.1:9000" })
     expect(config.listenHost).toBe("10.0.0.1")

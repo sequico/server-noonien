@@ -184,7 +184,7 @@ export async function startGossip(
   const stable = new Map<string, number>()
   // The watermark as it stood at the end of the previous round, so the hook fires only
   // when it actually advances (and never on the first round, which only establishes it).
-  let lastWatermark: string | undefined
+  let lastWatermark: Map<string, number> | undefined
   const random = seededRandom(config.nodeId)
   const startedAt = Date.now()
   const server = await startGossipServer({
@@ -313,15 +313,13 @@ export async function startGossip(
     const watermark = Object.fromEntries(
       [...stable.entries()].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
     )
-    const serialized = JSON.stringify(watermark)
-    if (
-      config.hookUrl !== undefined &&
-      lastWatermark !== undefined &&
-      serialized !== lastWatermark
-    ) {
+    const previous = lastWatermark
+    lastWatermark = new Map(stable)
+    // Only an advance: the stable watermark drops when a peer joins with no frontier yet
+    // (an unknown shard reads as -1), and that is not new data to announce.
+    if (config.hookUrl !== undefined && advancedWatermark(previous, lastWatermark)) {
       await notifyHook(config.hookUrl, { node: config.nodeId, watermark }, { metrics })
     }
-    lastWatermark = serialized
     metrics.gauge("noonien_gossip_shards", "Shards held locally", local.length)
     metrics.gauge(
       "noonien_gossip_stable_shards",
@@ -424,6 +422,26 @@ export async function startGossip(
 function bytesMoved(metrics: Metrics): number {
   const values = metrics.snapshot()
   return (values[BYTES_SENT_METRIC] ?? 0) + (values[BYTES_RECEIVED_METRIC] ?? 0)
+}
+
+/**
+ * True when a shard's stable watermark is higher than it was a round ago. A shard the
+ * previous round did not hold counts as an advance (it is new data); a lower value does
+ * not, so the hook never announces a regression.
+ */
+export function advancedWatermark(
+  previous: ReadonlyMap<string, number> | undefined,
+  current: ReadonlyMap<string, number>,
+): boolean {
+  if (previous === undefined) {
+    return false
+  }
+  for (const [node, seq] of current) {
+    if (seq > (previous.get(node) ?? Number.NEGATIVE_INFINITY)) {
+      return true
+    }
+  }
+  return false
 }
 
 /**

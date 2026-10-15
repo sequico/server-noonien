@@ -183,7 +183,12 @@ export function loadGossipConfig(env: NodeJS.ProcessEnv = process.env): GossipCo
   }
   const hookUrl = env["NOONIEND_HOOK_URL"]?.trim() || undefined
   if (hookUrl !== undefined) {
-    const parsed = new URL(hookUrl)
+    let parsed: URL
+    try {
+      parsed = new URL(hookUrl)
+    } catch {
+      throw new Error(`NOONIEND_HOOK_URL is not a URL: ${hookUrl}`)
+    }
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       throw new Error(`NOONIEND_HOOK_URL must be http or https, not ${parsed.protocol}`)
     }

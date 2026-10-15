@@ -239,6 +239,23 @@ export function elementEffect(op: Operation): ElementEffect {
   }
 }
 
+/**
+ * The group an operation belongs to when something reasons per element: the fold
+ * element for entities and relations, and the observation **content** for observations —
+ * a delete is content-level while an add is per occurrence, so grouping them by content
+ * is what lets a surviving occurrence keep the delete. The fold, the collection and the
+ * conflict report all reason about an element through this one definition.
+ */
+export function elementGroup(op: Operation): string {
+  switch (op.type) {
+    case "observation.add":
+    case "observation.delete":
+      return observationContentKey(op.entityName, op.content)
+    default:
+      return elementEffect(op).key
+  }
+}
+
 /** A human-readable label for the element an operation targets, for a conflict report. */
 export function describeElement(op: Operation): string {
   switch (op.type) {

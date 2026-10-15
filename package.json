@@ -50,6 +50,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "gate": "npm run check && npm run typecheck && npm run test && npm run build",
+    "release:check": "node scripts/release-check.mjs",
+    "mcpb": "node scripts/mcpb.mjs",
+    "publish:smithery": "node scripts/publish-smithery.mjs",
     "prepack": "npm run build",
     "prepublishOnly": "npm run gate"
   },

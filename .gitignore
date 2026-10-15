@@ -12,8 +12,9 @@ coverage/
 *.log
 npm-debug.log*
 
-# Packed artifacts (a local `npm pack` leaves these behind)
+# Packed artifacts (a local `npm pack` or `npm run mcpb` leaves these behind)
 *.tgz
+*.mcpb
 files.txt
 
 # Editor / OS

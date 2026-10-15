@@ -173,8 +173,8 @@ machines](#share-across-machines) is the next step. In OpenCode (V2):
 ```
 
 Other clients wrap the same command and environment in their own envelope; from a clone the command
-is `["node", "/path/to/server-noonien/dist/index.js"]`. Because the tool surface is identical, you can
-replace the `memory` server entry with `server-noonien` and change nothing else.
+is `["node", "/path/to/server-noonien/dist/index.js"]`. Because the nine drop-in tools are identical,
+you can replace the `memory` server entry with `server-noonien` and change nothing else.
 
 ### `noonien` — the maintenance CLI
 
@@ -442,6 +442,12 @@ VPN or firewall and enable mTLS — see [Security](#security).
 | `NOONIEND_TLS_CERT` / `NOONIEND_TLS_KEY` | — | Serve TLS with this certificate and key. |
 | `NOONIEND_TLS_CA` | — | CA that signs the peers' certificates, used to verify them in both directions. |
 | `NOONIEND_TLS_REQUIRE_CLIENT` | on | Require a client certificate (mTLS). |
+
+**Listen port.** The daemon listens on `27878`, the IANA user port the service is being registered
+for; the default was `7878` before 1.0.3. A mesh is only as reachable as its ports: a discovery seed
+carries no port and takes the **dialer's** own, so a node left on a different port is never found.
+Upgrade the nodes together, or set `NOONIEND_LISTEN` and `NOONIEND_ADVERTISE` to match while they
+are mixed.
 
 ## How it works
 

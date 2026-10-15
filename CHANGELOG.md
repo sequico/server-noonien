@@ -16,7 +16,8 @@ version and its date.
 ## 1.0.3 (2026-10-16)
 
 - Change the default `nooniend` listen port to `27878`, the IANA user port the service is being
-  registered for.
+  registered for. A mesh must run one port on every node — a discovery seed carries none and takes
+  the dialer's own — so upgrade the nodes together, or pin `NOONIEND_LISTEN` while they are mixed.
 - Document the `nooniend` wire protocol in [`PROTOCOL.md`](PROTOCOL.md); the README's daemon API
   section now points to it.
 - Disclose the package's one process spawn — `execFile` without a shell, in `nooniend` only and

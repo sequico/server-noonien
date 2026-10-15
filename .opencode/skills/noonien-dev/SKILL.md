@@ -11,7 +11,7 @@ commands, CRDT rules and gates. Use when editing, adding tools, or reviewing cod
 src/index.ts        bin `server-noonien`: the MCP server (no args, or `serve`)
 src/noonien.ts     bin `noonien`: the maintenance CLI
 src/gossip.ts       bin `nooniend`: the peer-to-peer replication daemon (no args)
-src/server.ts       the nine tools, the knowledge-graph resource and its subscriptions
+src/server.ts       the tools, the knowledge-graph resource and its subscriptions
 src/serve.ts        stdio server bootstrap
 src/cli.ts          CLI commands: serve / import / export / merge / compact / query / help
 src/config.ts       environment configuration and backend wiring
@@ -48,7 +48,9 @@ Run `npm run gate` before claiming any work done. Zero errors, zero warnings.
 
 ## Adding or changing a tool
 
-1. Keep the nine official tool names, inputs and outputs identical (drop-in contract).
+1. Keep the nine official tool names, inputs and outputs identical (drop-in contract). Extensions
+   beside them are allowed while the nine stay exact; `update_entities` and `update_relations` are
+   the current two.
 2. Model the change as operations in `src/graph/` — additive or tombstone (the `shard.compact`
    metadata op aside), never in-place mutation.
 3. If it touches merge/serialization/order, add or extend property tests for idempotence,

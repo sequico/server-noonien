@@ -212,7 +212,7 @@ on a specific provider.
   unverifiable blocks collection until the operator departs it, so the window bounds metadata
   without removing the decision.
 
-## Tool surface (drop-in)
+## Tool surface
 | Tool | Kind |
 | --- | --- |
 | `create_entities` | additive |
@@ -313,7 +313,7 @@ exist, never new backend capability.
 The design keeps the project's ethos — local-first, no service to host, drop-in:
 
 - **Read-only by construction.** The UI reads the GET routes and never mutates; mutations stay on
-  the nine MCP tools, so it adds no write surface.
+  the MCP tools, so it adds no write surface.
 - **No new runtime dependency.** The graph renders in plain SVG from the wire JSON; no framework
   enters `dependencies` or the packaged tree.
 - **The routes are the SSOT.** The UI consumes the documented HTTP API and the graph JSON shape; it

@@ -3,9 +3,20 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { hostname } from "node:os"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { formatHostPort, parseHostPort } from "../../src/gossip/address.js"
 import { DEFAULT_GOSSIP_PORT, loadGossipConfig } from "../../src/gossip/config.js"
+
+/** Run a config load and return what it wrote to stderr. */
+function stderrOf(env: NodeJS.ProcessEnv): string {
+  const spy = vi.spyOn(process.stderr, "write").mockReturnValue(true)
+  try {
+    loadGossipConfig(env)
+    return spy.mock.calls.map((call) => String(call[0])).join("")
+  } finally {
+    spy.mockRestore()
+  }
+}
 
 describe("loadGossipConfig", () => {
   it("binds the wildcard port and advertises the hostname by default", () => {
@@ -24,6 +35,14 @@ describe("loadGossipConfig", () => {
     expect(config.forgetAfterMs).toBe(15_552_000_000)
     expect(config.push).toBe(true)
     expect(config.tls).toBeUndefined()
+  })
+
+  it("warns when the advertised port differs from the bound one", () => {
+    expect(
+      stderrOf({ NOONIEND_LISTEN: "0.0.0.0:9000", NOONIEND_ADVERTISE: "host:9001" }),
+    ).toContain("NOONIEND_ADVERTISE port 9001 differs from the NOONIEND_LISTEN port 9000")
+    // The same port on two addresses is the reported support case: no warning.
+    expect(stderrOf({ NOONIEND_LISTEN: "0.0.0.0:9000", NOONIEND_ADVERTISE: "host:9000" })).toBe("")
   })
 
   it("advertises an explicit listen address when one is configured", () => {

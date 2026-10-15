@@ -129,6 +129,16 @@ describe("Candidates", () => {
     candidates.add(["a:1"])
     expect(candidates.size).toBe(0)
   })
+
+  it("probes a candidate again on a discovery refresh, without waiting out its backoff", () => {
+    const candidates = new Candidates(30_000, 300_000)
+    candidates.add(["a:1"])
+    candidates.failed("a:1", 0)
+    expect(candidates.due(29_999)).toEqual([])
+    // A refresh is new information: the candidate is due at once.
+    candidates.add(["a:1"])
+    expect(candidates.due(1)).toEqual(["a:1"])
+  })
 })
 
 describe("collectSeeds", () => {

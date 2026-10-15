@@ -81,9 +81,14 @@ export class Candidates {
   /** Add addresses from a discovery refresh; one already resolved is kept out. */
   add(addresses: Iterable<string>): void {
     for (const address of addresses) {
-      if (!this.resolved.has(address)) {
-        this.pending.add(address)
+      if (this.resolved.has(address)) {
+        continue
       }
+      // A refresh is new information, not a repeat of the last failure: probe the
+      // candidate on the next round instead of waiting out its backoff, so a peer that
+      // came up — or moved to another port — is adopted at once rather than in minutes.
+      this.backoff.delete(address)
+      this.pending.add(address)
     }
   }
 

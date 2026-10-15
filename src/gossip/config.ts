@@ -4,6 +4,7 @@
 
 import { hostname } from "node:os"
 import { loadConfig } from "../config.js"
+import { warn } from "../diagnostics.js"
 import { parseFlag, parseInteger } from "../env.js"
 import { formatHostPort, parseHostPort } from "./address.js"
 
@@ -158,6 +159,16 @@ export function loadGossipConfig(env: NodeJS.ProcessEnv = process.env): GossipCo
   const advertise =
     env["NOONIEND_ADVERTISE"]?.trim() ||
     formatHostPort(wildcard ? hostname() : listenHost, listenPort)
+  // Peers dial the advertised address, not the bound one, so a deliberate mismatch
+  // (a proxy or a NAT forward) is legal but a typo partitions the mesh: say it loudly
+  // instead of discovering it as a silent absence.
+  const advertisePort = parseHostPort(advertise, listenHost, listenPort).port
+  if (advertisePort !== listenPort) {
+    warn(
+      `NOONIEND_ADVERTISE port ${advertisePort} differs from the NOONIEND_LISTEN port ` +
+        `${listenPort}: peers dial the advertised one, so keep it only behind a forward`,
+    )
+  }
   const suspectAfter = parseInteger(env["NOONIEND_SUSPECT_AFTER"], 3, "NOONIEND_SUSPECT_AFTER")
   const deadAfter = parseInteger(env["NOONIEND_DEAD_AFTER"], 6, "NOONIEND_DEAD_AFTER")
   if (deadAfter < suspectAfter) {

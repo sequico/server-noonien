@@ -19,6 +19,8 @@ version and its date.
   for an update or a merge instead of composing delete + create.
 - Re-probe a discovery candidate as soon as a refresh proposes it again, so a peer that moved port is
   adopted at once, and warn when `NOONIEND_ADVERTISE` and `NOONIEND_LISTEN` disagree on the port.
+- `nooniend` POSTs `{ node, watermark }` to `NOONIEND_HOOK_URL` when the stable watermark advances, so
+  a listener learns that a peer wrote something (best effort; it never announces a regression).
 - Change the default `nooniend` listen port to `27878`, the IANA user port the service is being
   registered for. A mesh must run one port on every node — a discovery seed carries none and takes
   the dialer's own — so upgrade the nodes together, or pin `NOONIEND_LISTEN` while they are mixed.

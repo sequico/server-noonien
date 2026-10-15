@@ -275,8 +275,8 @@ through environment variables: the shared `NOONIEN_DIR` and `NOONIEN_NODE_ID` pl
   cache, HLC ordering, cross-shard compaction and the case where a peer recovers the local shard
   while the server is running.
 - Integration tests that drive the real serving entry (`serveStdio`) over an in-memory transport and
-  assert the nine-tool drop-in contract plus the two update extensions, including the official
-  outputs and messages.
+  assert the nine-tool drop-in contract plus the extension tools, including the official outputs
+  and messages, and that every tool carries a description and its expected annotations.
 - Migration round-trip from an official `memory.jsonl`.
 - Gossip: unit tests for the replica store, membership, bootstrap, configuration (including the
   membership TTL forget and the revocation list), the seeded sampler and the shard digest; a
@@ -354,7 +354,8 @@ ES modules and inline SVG; no bundler and no framework in the toolchain or the r
 ## Current state
 
 - **Core CRDT and the `file` backend** — an append-only operation log, the fold, the nine drop-in
-  tools over stdio and the `update_entities`/`update_relations` extensions.
+  tools over stdio and the extension tools (`update_entities`, `update_observations`,
+  `update_relations`, `merge_entities`, `read_conflicts`), with an optional page on the reads.
 - **Maintenance CLI** (`noonien`) — `serve`, `import`, `export`, `merge`, `compact`, `query`,
   `help`; `import` migrates an official `memory.jsonl`.
 - **S3 backend** — shards as objects written with versioned conditional writes that are retried on
@@ -373,7 +374,8 @@ ES modules and inline SVG; no bundler and no framework in the toolchain or the r
   Tailscale bootstrap and a gossiped peer set.
 - **Scaling foundations and adaptive topology** — HLC ordering, incremental reads with a memoized
   fold, cross-shard compaction, the daemon `/health`, `/peers`, `/status`, `/graph`, `/metrics` and
-  `/watermark`, membership TTL and node revocation, the bounded retention of silent peers (a retired
+  `/watermark`, an operator hook POSTed when the stable watermark advances, membership TTL and node
+  revocation, the bounded retention of silent peers (a retired
   frontier plus durable blankets); fanout-capped peer sampling with a seeded RNG and opt-in relays;
   a fixed-size shard digest above a threshold behind an additive `/info` capability; a membership
   channel split; and a stable watermark kept conservative across rounds. The scaling plan (partial

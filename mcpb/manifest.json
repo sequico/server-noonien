@@ -36,7 +36,7 @@
       ],
       "env": {
         "NOONIEN_DIR": "${user_config.directory}",
-        "NOONIEN_NODE_ID": "${user_config.node_id}"
+        "NOONIEN_NODE_ID": "${user_config.nodeId}"
       }
     }
   },
@@ -47,7 +47,7 @@
       "description": "Directory holding this machine's shards. Leave empty for the default (~/.noonien).",
       "required": false
     },
-    "node_id": {
+    "nodeId": {
       "type": "string",
       "title": "Node id",
       "description": "This node's shard name. Must be unique per machine. Leave empty to use the hostname.",

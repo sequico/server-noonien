@@ -437,6 +437,7 @@ VPN or firewall and enable mTLS — see [Security](#security).
 | `NOONIEND_DEAD_AFTER` | `6` | Failed exchanges before a peer is marked dead. |
 | `NOONIEND_DEAD_RETRY` | `300` | Seconds a dead peer is left alone before it is probed again. |
 | `NOONIEND_MEMBERSHIP_TTL` | `604800` | Seconds a dead peer is kept before it is forgotten. |
+| `NOONIEND_HOOK_URL` | — | `http(s)` URL the daemon POSTs `{ node, watermark }` to when the stable watermark advances (a peer wrote something); best effort, a hook that is down is a warning, never a failed round. |
 | `NOONIEND_REVOKED` | — | Comma-separated node ids the daemon never syncs with and refuses to accept. |
 | `NOONIEND_DEPARTED` | — | Comma-separated node ids explicitly gone: like `NOONIEND_REVOKED` but their replica is also discarded and they stop blocking collection. |
 | `NOONIEND_TLS_CERT` / `NOONIEND_TLS_KEY` | — | Serve TLS with this certificate and key. |
@@ -598,7 +599,8 @@ The same endpoint carries the transport and liveness families — `noonien_gossi
 `noonien_gossip_ops_pulled_total`, `noonien_gossip_ops_pushed_total`,
 `noonien_gossip_digest_exchanges_total`, `noonien_gossip_membership_channel_failures_total`,
 `noonien_gossip_bytes_sent_total`, `noonien_gossip_bytes_received_total`,
-`noonien_gossip_fanout`, `noonien_gossip_up` — and, when the daemon runs the local log's own
+`noonien_gossip_fanout`, `noonien_gossip_up`, `noonien_gossip_hook_total`,
+`noonien_gossip_hook_failed_total` — and, when the daemon runs the local log's own
 maintenance, its `noonien_mcp_*` counters (`noonien_mcp_folds_total`, `noonien_mcp_fold_seconds`,
 `noonien_mcp_shards_merged`, `noonien_mcp_shard_stat_total`, `noonien_mcp_ops_decoded_total`,
 `noonien_mcp_compacted_total`, `noonien_mcp_compaction_failed_total`).
@@ -668,8 +670,8 @@ an existing name refuses to guess at; it is the way to un-do a duplicate a concu
 behind. `read_conflicts` lists exactly those elements more than one node has written, with the
 authors, so a last-writer-wins resolution is visible instead of silent. `read_graph` and
 `search_nodes` accept an optional `limit`/`offset` (and `search_nodes` an `entityType` filter) so a
-large graph is read a page at a time; without those arguments the answer is byte-for-byte the one
-they gave before.
+large graph is read a page at a time — a page carries the relations touching its entities — and
+without those arguments the answer is byte-for-byte the one they gave before.
 
 ## Security
 

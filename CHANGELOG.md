@@ -7,7 +7,7 @@ version and its date.
 
 [rp]: https://github.com/googleapis/release-please
 
-## Unreleased
+## 1.1.0 (2026-10-16)
 
 - Add `update_entities` (rename an entity and/or change its type, keeping its observations and its
   relations) and `update_relations` (change a relation's type or repoint its endpoints) — the edits

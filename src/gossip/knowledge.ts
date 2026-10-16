@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { access, readFile, rename, writeFile } from "node:fs/promises"
+import { access, open, readFile, rename } from "node:fs/promises"
 import { join } from "node:path"
 import { isNotFound } from "../errors.js"
 import { isSafeNodeId } from "../sync/backend.js"
@@ -72,9 +72,9 @@ function isStoredPeer(value: unknown): value is StoredPeer {
 }
 
 /**
- * Read the retired frontier, failing loudly on a malformed one. Unlike a peer record —
- * which, dropped, only conservatively keeps blocking — a dropped threshold would
- * *unblock* an element a retired peer could still contest, so a corrupt reserved key
+ * Read the retired frontier, failing loudly on a malformed one. A dropped threshold
+ * would *unblock* an element a retired peer could still contest — exactly what a
+ * malformed peer record is kept from doing by a blanket — so a corrupt reserved key
  * stops the daemon instead of being ignored.
  */
 function parseRetired(value: unknown, path: string): Map<string, number> {
@@ -160,7 +160,13 @@ export class PeerKnowledge {
       throw error
     }
     if (text.trim() === "") {
-      return knowledge
+      // An existing but empty file is not a record we wrote: the only way one appears
+      // is a crash that lost the bytes behind the rename. Reading it as "no record"
+      // would forget every frontier — and forget them *conservatively* nowhere — so it
+      // stops the daemon, like any other corrupt record.
+      throw new Error(
+        `corrupt peer knowledge file ${path}: empty, as after a crash that lost the write`,
+      )
     }
     let parsed: unknown
     try {
@@ -173,10 +179,23 @@ export class PeerKnowledge {
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
       throw new Error(`corrupt peer knowledge file ${path}: not a JSON object`)
     }
-    for (const [node, state] of Object.entries(parsed as Record<string, unknown>)) {
-      // An entry with an unsafe node id or a malformed frontier is dropped: with no
-      // frontier the node conservatively blocks collection, never unblocks it.
-      if (!isSafeNodeId(node) || !isStoredPeer(state)) {
+    const record = parsed as Record<string, unknown>
+    // The reserved keys first: a malformed peer record below adds a blanket, and
+    // replacing the set afterwards would drop it.
+    knowledge.retired = parseRetired(record[RETIRED_KEY], path)
+    knowledge.blankets = parseBlankets(record[BLANKETS_KEY], path)
+    for (const [node, state] of Object.entries(record)) {
+      // A node id that is not a safe shard stem cannot be a peer, and its key can
+      // never be read as a shard: nothing to protect, nothing to report.
+      if (!isSafeNodeId(node)) {
+        continue
+      }
+      if (!isStoredPeer(state)) {
+        // A record we cannot read is a peer whose protection we do not know. Dropping
+        // it would read as "this node holds nothing" — an unblock, not a conservative
+        // skip — so it keeps a blanket instead: every element stays pinned until an
+        // operator resolves it, and the counter says which peer is the reason.
+        knowledge.blankets.add(node)
         continue
       }
       knowledge.peers.set(node, {
@@ -184,9 +203,6 @@ export class PeerKnowledge {
         shards: new Map(Object.entries(state.shards)),
       })
     }
-    const record = parsed as Record<string, unknown>
-    knowledge.retired = parseRetired(record[RETIRED_KEY], path)
-    knowledge.blankets = parseBlankets(record[BLANKETS_KEY], path)
     return knowledge
   }
 
@@ -316,7 +332,17 @@ export class PeerKnowledge {
       stored[BLANKETS_KEY] = [...this.blankets].sort()
     }
     const temp = `${this.path}.tmp`
-    await writeFile(temp, `${JSON.stringify(stored)}\n`)
+    // Synced before the rename: a rename is atomic, but without the sync the rename
+    // can be durable while the bytes behind it are not, and a power cut can leave an
+    // empty file — which the loader refuses rather than reads as "no record", so the
+    // record is never silently forgotten.
+    const handle = await open(temp, "w")
+    try {
+      await handle.writeFile(`${JSON.stringify(stored)}\n`)
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
     await rename(temp, this.path)
     this.dirty = false
     this.written = true

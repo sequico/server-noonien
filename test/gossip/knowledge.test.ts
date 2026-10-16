@@ -185,7 +185,7 @@ describe("PeerKnowledge", () => {
     await expect(PeerKnowledge.load(path)).rejects.toThrow()
   })
 
-  it("drops an entry with an unsafe node id or a malformed frontier", async () => {
+  it("drops an unsafe node id and blankets a peer record it cannot read", async () => {
     const path = await tempPath()
     await writeFile(
       path,
@@ -199,5 +199,22 @@ describe("PeerKnowledge", () => {
     const knowledge = await PeerKnowledge.load(path)
     expect(knowledge.nodes()).toEqual(["good"])
     expect(knowledge.frontier("good")).toEqual(new Map([["a", 3]]))
+    // A record we cannot read is a peer whose protection we do not know. Dropping it
+    // silently would read as "this peer holds nothing" — an unblock — so each one
+    // keeps a blanket: every element pinned until an operator resolves it.
+    expect(knowledge.blanketCount()).toBe(2)
+    // A key that cannot be a shard stem is not a peer: no record, no blanket.
+    expect(knowledge.nodes()).not.toContain("../evil")
+  })
+
+  it("rejects an empty record, as a crash that lost the write leaves one", async () => {
+    // The rename is atomic and the bytes behind it are synced, so the only way an
+    // existing file has no content is a crash. Reading it as "no record" would forget
+    // every frontier and stop failing loudly about it.
+    const path = await tempPath()
+    await writeFile(path, "")
+    await expect(PeerKnowledge.load(path)).rejects.toThrow(/corrupt/)
+    await writeFile(path, "\n")
+    await expect(PeerKnowledge.load(path)).rejects.toThrow(/corrupt/)
   })
 })

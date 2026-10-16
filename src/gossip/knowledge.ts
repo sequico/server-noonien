@@ -8,7 +8,7 @@ import { isNotFound } from "../errors.js"
 import { isSafeNodeId } from "../sync/backend.js"
 
 /** The durable knowledge file the daemon writes inside the shard directory. */
-export const PEERS_FILE = ".nooniend-peers.json"
+const PEERS_FILE = ".nooniend-peers.json"
 
 /**
  * Reserved keys of the knowledge file, holding the durable protection that outlives

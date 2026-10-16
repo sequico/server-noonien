@@ -6,7 +6,7 @@ import { hostname } from "node:os"
 import { loadConfig } from "../config.js"
 import { warn } from "../diagnostics.js"
 import { parseFlag, parseInteger } from "../env.js"
-import { formatHostPort, parseHostPort } from "./address.js"
+import { formatHostPort, isPeerAddress, parseHostPort } from "./address.js"
 
 /** Default TCP port for the gossip service (IANA user port, registration pending). */
 export const DEFAULT_GOSSIP_PORT = 27878
@@ -146,6 +146,34 @@ export interface GossipConfig {
  * - `NOONIEND_TLS_CERT` / `_KEY` / `_CA` / `_REQUIRE_CLIENT` — enable TLS;
  *   a client certificate is required by default (mTLS).
  */
+/**
+ * The address this node tells peers to dial: `NOONIEND_ADVERTISE`, or the bound host
+ * and port. Peers dial the advertised address, not the bound one, so a deliberate
+ * mismatch (a proxy or a NAT forward) is legal but a typo partitions the mesh — say it
+ * loudly instead of discovering it as a silent absence. A value no peer could accept is
+ * refused outright: every peer validates the entry with the same grammar, so this node
+ * would be a member nowhere with nothing said about it.
+ */
+function resolveAdvertise(env: NodeJS.ProcessEnv, listenHost: string, listenPort: number): string {
+  const wildcard = listenHost === "0.0.0.0" || listenHost === "::" || listenHost === ""
+  const advertise =
+    env["NOONIEND_ADVERTISE"]?.trim() ||
+    formatHostPort(wildcard ? hostname() : listenHost, listenPort)
+  if (!isPeerAddress(advertise)) {
+    throw new Error(
+      `NOONIEND_ADVERTISE must be a host:port address peers can dial, got ${JSON.stringify(advertise)}`,
+    )
+  }
+  const advertisePort = parseHostPort(advertise, listenHost, listenPort).port
+  if (advertisePort !== listenPort) {
+    warn(
+      `NOONIEND_ADVERTISE port ${advertisePort} differs from the NOONIEND_LISTEN port ` +
+        `${listenPort}: peers dial the advertised one, so keep it only behind a forward`,
+    )
+  }
+  return advertise
+}
+
 export function loadGossipConfig(env: NodeJS.ProcessEnv = process.env): GossipConfig {
   const base = loadConfig(env)
   // The daemon replicates a **directory**: it has no object-store backend, so with
@@ -162,20 +190,7 @@ export function loadGossipConfig(env: NodeJS.ProcessEnv = process.env): GossipCo
     "0.0.0.0",
     DEFAULT_GOSSIP_PORT,
   )
-  const wildcard = listenHost === "0.0.0.0" || listenHost === "::" || listenHost === ""
-  const advertise =
-    env["NOONIEND_ADVERTISE"]?.trim() ||
-    formatHostPort(wildcard ? hostname() : listenHost, listenPort)
-  // Peers dial the advertised address, not the bound one, so a deliberate mismatch
-  // (a proxy or a NAT forward) is legal but a typo partitions the mesh: say it loudly
-  // instead of discovering it as a silent absence.
-  const advertisePort = parseHostPort(advertise, listenHost, listenPort).port
-  if (advertisePort !== listenPort) {
-    warn(
-      `NOONIEND_ADVERTISE port ${advertisePort} differs from the NOONIEND_LISTEN port ` +
-        `${listenPort}: peers dial the advertised one, so keep it only behind a forward`,
-    )
-  }
+  const advertise = resolveAdvertise(env, listenHost, listenPort)
   const suspectAfter = parseInteger(env["NOONIEND_SUSPECT_AFTER"], 3, "NOONIEND_SUSPECT_AFTER")
   const deadAfter = parseInteger(env["NOONIEND_DEAD_AFTER"], 6, "NOONIEND_DEAD_AFTER")
   if (deadAfter < suspectAfter) {

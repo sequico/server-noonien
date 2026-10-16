@@ -7,7 +7,7 @@ import { createServer as createHttpServer, type Server } from "node:http"
 import { createServer as createHttpsServer } from "node:https"
 import type { AddressInfo } from "node:net"
 import type { TLSSocket } from "node:tls"
-import { warn } from "../diagnostics.js"
+import { describe, warn } from "../diagnostics.js"
 import { decodeOperations, encodeOperation } from "../graph/codec.js"
 import { foldOperations } from "../graph/fold.js"
 import type { Operation } from "../graph/operations.js"
@@ -77,9 +77,15 @@ export interface GossipServerOptions {
   readonly knowledge?: PeerKnowledge
   /** Node ids refused outright — a revoked peer is rejected on every route. */
   readonly revoked?: ReadonlySet<string>
-  /** Maximum accepted size of a pushed body; defaults to the wire cap. */
+  /**
+   * Maximum accepted size of a pushed body; defaults to the wire cap. Present as a
+   * seam so a test can exercise the refusal without sending eight megabytes.
+   */
   readonly maxBodyBytes?: number
-  /** Operations the `/graph` route folds in one request; defaults to the ceiling. */
+  /**
+   * Operations the `/graph` route folds in one request; defaults to the ceiling.
+   * Present as a seam so a test can exercise the refusal with two operations.
+   */
   readonly maxGraphOps?: number
   /**
    * Offered the `host:port` of a caller that is not a peer yet, when the host it
@@ -111,7 +117,7 @@ export function startGossipServer(options: GossipServerOptions): Promise<GossipS
       }
       // Do not echo an internal error to the peer — it can leak paths and state.
       // Log it here and answer generically.
-      warn(`request failed: ${error instanceof Error ? error.message : String(error)}`)
+      warn(`request failed: ${describe(error)}`)
       send(response, 500, { error: "internal error" })
     })
   }

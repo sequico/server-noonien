@@ -20,7 +20,7 @@ export interface BootstrapOptions {
 }
 
 /** Seed service name used for the DNS SRV adapter. */
-export const SRV_SERVICE = "_nooniend._tcp"
+const SRV_SERVICE = "_nooniend._tcp"
 
 /**
  * Discovery adapters only return an initial peer list; membership then

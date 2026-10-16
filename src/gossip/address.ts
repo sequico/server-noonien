@@ -10,7 +10,7 @@
  */
 
 /** True when a value is a usable TCP port (1–65535). */
-export function isValidPort(value: number): boolean {
+function isValidPort(value: number): boolean {
   return Number.isInteger(value) && value >= 1 && value <= 65535
 }
 

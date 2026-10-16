@@ -19,9 +19,9 @@ export const CLI_PREFIX = "noonien"
 export const DAEMON_PREFIX = "nooniend"
 
 /**
- * The prefix `warn` and `gossip` use. Shared modules (the codec, the shard log)
- * are called from every entry point, so the process sets it once at startup and
- * their messages carry the right command name.
+ * The prefix every message carries. Shared modules (the codec, the shard log) are
+ * called from every entry point, so the process sets it once at startup and their
+ * messages carry the right command name.
  */
 let prefix = MCP_PREFIX
 
@@ -30,18 +30,13 @@ export function setPrefix(value: string): void {
   prefix = value
 }
 
-function emit(activePrefix: string, message: string): void {
-  process.stderr.write(`${activePrefix}: ${message}\n`)
+function emit(message: string): void {
+  process.stderr.write(`${prefix}: ${message}\n`)
 }
 
 /** Report a recoverable problem from the running process. */
 export function warn(message: string): void {
-  emit(prefix, message)
-}
-
-/** Report a recoverable problem from the replication daemon. */
-export function gossip(message: string): void {
-  emit(prefix, message)
+  emit(message)
 }
 
 /** The message of an unknown thrown value. */
@@ -53,7 +48,7 @@ export function describe(error: unknown): string {
  * Report a fatal error and set a non-zero exit code. `process.exit` can drop a
  * pending write to a piped stderr, so the caller lets the now-idle loop drain.
  */
-export function fatal(prefix: string, error: unknown): void {
-  emit(prefix, describe(error))
+export function fatal(error: unknown): void {
+  emit(describe(error))
   process.exitCode = 1
 }

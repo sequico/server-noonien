@@ -5,7 +5,7 @@
 import { type FSWatcher, readFileSync, watch } from "node:fs"
 import { mkdir, rm } from "node:fs/promises"
 import { join } from "node:path"
-import { gossip } from "../diagnostics.js"
+import { describe, warn } from "../diagnostics.js"
 import { Metrics } from "../metrics.js"
 import { ShardLog } from "../store/log.js"
 import { isSafeNodeId, shardName } from "../sync/backend.js"
@@ -140,7 +140,7 @@ export async function startGossip(
   const metrics = new Metrics()
   const log = (message: string): void => {
     if (options.quiet !== true) {
-      gossip(message)
+      warn(message)
     }
   }
 
@@ -440,12 +440,12 @@ export async function startGossip(
       // queue exactly one more round, drained by the running one. Keep the in-flight
       // promise, so `close` still awaits the round that is actually running.
       void syncOnce().catch((error: unknown) => {
-        log(`sync round failed: ${error instanceof Error ? error.message : String(error)}`)
+        log(`sync round failed: ${describe(error)}`)
       })
       return
     }
     inFlight = syncOnce().catch((error: unknown) => {
-      log(`sync round failed: ${error instanceof Error ? error.message : String(error)}`)
+      log(`sync round failed: ${describe(error)}`)
     })
   }
 
@@ -721,7 +721,7 @@ async function collect(input: CollectInput): Promise<void> {
       result.frozen,
     )
   } catch (error) {
-    input.log(`gc failed: ${error instanceof Error ? error.message : String(error)}`)
+    input.log(`gc failed: ${describe(error)}`)
   }
 }
 

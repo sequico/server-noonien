@@ -13,4 +13,4 @@ setPrefix(CLI_PREFIX)
 // `server-noonien`, and the replication daemon is `nooniend`.
 void Promise.resolve()
   .then(() => runCli(process.argv.slice(2)))
-  .catch((error: unknown) => fatal(CLI_PREFIX, error))
+  .catch((error: unknown) => fatal(error))

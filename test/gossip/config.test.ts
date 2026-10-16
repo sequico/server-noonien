@@ -45,6 +45,18 @@ describe("loadGossipConfig", () => {
     expect(stderrOf({ NOONIEND_LISTEN: "0.0.0.0:9000", NOONIEND_ADVERTISE: "host:9000" })).toBe("")
   })
 
+  it("refuses an advertised address no peer could dial", () => {
+    // Every peer validates the entry with the same grammar, so a value that is not a
+    // peer address makes this node a member nowhere — a silent partition instead of a
+    // startup error.
+    expect(() => loadGossipConfig({ NOONIEND_ADVERTISE: "ai" })).toThrow(
+      /NOONIEND_ADVERTISE must be a host:port/,
+    )
+    expect(() => loadGossipConfig({ NOONIEND_ADVERTISE: "ai:0" })).toThrow(/host:port/)
+    expect(() => loadGossipConfig({ NOONIEND_ADVERTISE: "http://ai:27878" })).toThrow(/host:port/)
+    expect(loadGossipConfig({ NOONIEND_ADVERTISE: "ai:27878" }).advertise).toBe("ai:27878")
+  })
+
   it("refuses a hook URL that is not an http(s) URL", () => {
     expect(() => loadGossipConfig({ NOONIEND_HOOK_URL: "not a url" })).toThrow(
       "NOONIEND_HOOK_URL is not a URL",

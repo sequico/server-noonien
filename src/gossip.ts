@@ -19,7 +19,7 @@ void startGossip()
       void handle.close().then(
         () => process.exit(0),
         (error: unknown) => {
-          fatal(DAEMON_PREFIX, error)
+          fatal(error)
           process.exit()
         },
       )
@@ -27,4 +27,4 @@ void startGossip()
     process.once("SIGINT", shutdown)
     process.once("SIGTERM", shutdown)
   })
-  .catch((error: unknown) => fatal(DAEMON_PREFIX, error))
+  .catch((error: unknown) => fatal(error))

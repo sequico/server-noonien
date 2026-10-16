@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { warn } from "../diagnostics.js"
+import { describe, warn } from "../diagnostics.js"
 import type { Metrics } from "../metrics.js"
 
 /** How long a hook post may take before it is abandoned. */
@@ -35,7 +35,7 @@ export async function notifyHook(
     metrics?.counter("noonien_gossip_hook_total", "Hook posts delivered")
     return true
   } catch (error) {
-    warn(`hook ${url} failed: ${error instanceof Error ? error.message : String(error)}`)
+    warn(`hook ${url} failed: ${describe(error)}`)
     metrics?.counter("noonien_gossip_hook_failed_total", "Hook posts that failed")
     return false
   }

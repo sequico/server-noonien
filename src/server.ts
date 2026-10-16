@@ -58,11 +58,7 @@ function textResult(text: string): { type: "text"; text: string } {
  * and `read_conflicts` additions never change them. `onMutate`
  * runs after every successful mutation so the server can notify subscribers.
  */
-export function registerMemoryTools(
-  server: McpServer,
-  graph: MemoryGraph,
-  onMutate: () => void,
-): void {
+function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: () => void): void {
   server.registerTool(
     "create_entities",
     {
@@ -580,7 +576,7 @@ function registerGraphSubscriptions(server: McpServer): () => void {
  * value of an edit — and of `read_conflicts` in particular — has to be stated where the
  * client reads it, not only in each tool's own description.
  */
-export const INSTRUCTIONS =
+const INSTRUCTIONS =
   "Shared, conflict-free knowledge-graph memory — entities with observations, and typed " +
   "relations between them — converged across machines without a server. The nine memory " +
   "tools behave as in @modelcontextprotocol/server-memory. To change what already exists, do " +

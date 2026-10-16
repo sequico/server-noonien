@@ -18,11 +18,10 @@ if (command === undefined || command === "serve") {
   try {
     runStdioServer()
   } catch (error) {
-    fatal(MCP_PREFIX, error)
+    fatal(error)
   }
 } else {
   fatal(
-    MCP_PREFIX,
     new Error(
       `unknown argument "${command}"; the maintenance CLI is \`noonien\` (try \`noonien help\`)`,
     ),

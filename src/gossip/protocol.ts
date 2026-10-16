@@ -5,7 +5,7 @@
 import { z } from "zod"
 
 /** One peer entry in the gossiped membership set. */
-export const PeerEntrySchema = z.object({
+const PeerEntrySchema = z.object({
   node: z.string().min(1),
   address: z.string().min(1),
   version: z.number().int().min(0),
@@ -34,7 +34,7 @@ export const DIGEST_CAPABILITY = "digest"
 export const MAX_LIST_ENTRIES = 10_000
 
 /** Ceiling on the capabilities a peer may advertise in `/info`. */
-export const MAX_CAPABILITIES = 64
+const MAX_CAPABILITIES = 64
 
 /**
  * Maximum size of a pushed operations body. The server rejects a larger request, and
@@ -64,7 +64,7 @@ export const MembershipSchema = z.object({
 })
 
 /** One servable shard. */
-export const ShardSummarySchema = z.object({
+const ShardSummarySchema = z.object({
   node: z.string().min(1),
   count: z.number().int().min(0),
   maxSeq: z.number().int(),
@@ -77,7 +77,7 @@ export const ShardsSchema = z.object({
 })
 
 /** One bucket of the shard digest: a hash over the bucket's shard summaries. */
-export const DigestBucketSchema = z.object({
+const DigestBucketSchema = z.object({
   index: z.number().int().min(0),
   hash: z.string().min(1),
   count: z.number().int().min(0),
@@ -117,5 +117,4 @@ export const ReceiveResultSchema = z.object({
 export type PeerEntryDto = z.infer<typeof PeerEntrySchema>
 export type PeerInfoDto = z.infer<typeof PeerInfoSchema>
 export type ShardSummaryDto = z.infer<typeof ShardSummarySchema>
-export type DigestBucketDto = z.infer<typeof DigestBucketSchema>
 export type DigestDto = z.infer<typeof DigestSchema>

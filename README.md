@@ -118,6 +118,10 @@ and all three land on your `PATH`:
 npm install -g server-noonien
 ```
 
+The `s3` backend's `@aws-sdk/client-s3` is an **optional** dependency, loaded only when
+`NOONIEN_BACKEND=s3` selects it. `npm install -g server-noonien --omit=optional` skips it when you
+never use `s3`.
+
 | Command | Role | How it runs |
 | --- | --- | --- |
 | **`server-noonien`** | the MCP memory server | short-lived, **spawned by the MCP client** over stdio |
@@ -263,10 +267,13 @@ How it behaves:
   `NOONIEND_DEAD_RETRY`, and forgotten after `NOONIEND_MEMBERSHIP_TTL`. A peer that reaches this
   node is marked alive — its certificate names it under mTLS, otherwise the id it announces on the
   request — so a peer that recovers is re-engaged at once instead of waiting out
-  `NOONIEND_DEAD_RETRY`. A peer this node does not know yet is adopted from the address it
-  announces on the request (untrusted, like a gossiped entry, and confirmed by the next sync), so a
-  statically-seeded joiner is discovered by the seeds it reached and its entry then spreads to the
-  rest. A node's own entry is authoritative; an address that serves a different node is dropped.
+  `NOONIEND_DEAD_RETRY`. A caller that is **not** a peer yet is never adopted from its headers: nothing it
+  sends becomes membership, and its id is never taken on trust. It is offered as a discovery candidate
+  instead — the host the request came from, the port it announces — and the daemon confirms it on
+  `/info`, exactly like a Tailscale or DNS candidate. That is how a statically-seeded joiner is
+  discovered by the seeds it reached, within a round, and why an address announced for a *different*
+  host is never even probed. A node's own entry is authoritative; an address that serves a different
+  node is dropped.
 - **Wire and security.** A small HTTP/JSON service bound to `NOONIEND_LISTEN` (the full wire contract
   is in [`PROTOCOL.md`](PROTOCOL.md)); a shard accepts only its own node's operations. mTLS with
   per-peer certificates: the certificate's **common name is the node id**, so a peer may only push
@@ -308,6 +315,10 @@ curl -s http://127.0.0.1:27878/status
 curl -s http://127.0.0.1:27878/peers
 curl -s http://127.0.0.1:27878/graph | jq '{entities: (.entities|length), relations: (.relations|length)}'
 ```
+
+`/graph` folds everything the node holds, so it is a diagnostic for a normal directory: past 50 000
+operations it answers `413` and asks for the shards instead, which serve the same data a page at a
+time.
 
 ### Shared area — `file` and `s3`
 
@@ -683,9 +694,13 @@ without those arguments the answer is byte-for-byte the one they gave before.
   mTLS (on by default when certificates are configured) so only authenticated peers replicate. The
   client **always verifies the peer certificate** — a configured CA, or the system trust store when
   none is set; an unverified connection is never used. Without TLS the daemon trusts the underlay; a
-  peer's advertised address is still validated as a plain `host:port`, and it is adopted only when
-  it matches the host the request actually came from (so an announced header cannot point the dialer
-  at another host). A refusal (`NOONIEND_REVOKED` / `NOONIEND_DEPARTED`) needs the client
+  peer's advertised address is still validated as a plain `host:port` before it is dialed, and a dial
+  target only ever comes from a peer's own `/info`, a static seed, the membership list a peer gossips
+  or a candidate built from **the host the request came from** — so an announced address can never
+  point the dialer at another host. The store also refuses a **new** shard once it holds as many as a
+  peer may advertise, so neither a pushed node id nor an advertised one can fill the directory. A
+  refusal
+  (`NOONIEND_REVOKED` / `NOONIEND_DEPARTED`) needs the client
   certificate that mTLS supplies — without it a peer has no identity to refuse. Setting
   `NOONIEND_TLS_REQUIRE_CLIENT=false` turns TLS back into an unauthenticated channel (any client
   can push any shard); the daemon logs a warning at startup in that mode.

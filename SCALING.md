@@ -27,6 +27,32 @@ not across a federation. Authorization is CN-only.
 **Recommendation, up front:** do not run 10,000 machines in one graph. Partition into **islands** of
 ~10–100 nodes and federate them. The plan scales an island and defines how islands link.
 
+### Measured cost of a read, `file` backend
+
+A synthetic directory where one node authors every operation (an entity and one observation each), read
+through `read_graph` right after a write — the expensive case, since the fold is memoized on the
+operation set and a write is what invalidates it. Median of five, Node 24:
+
+| Operations on disk | Shard file | Fold of the log | `read_graph` after a write | Resident RAM after GC |
+| --- | --- | --- | --- | --- |
+| 20 000 | 8.1 MB | 67 ms | 103 ms | 298 MB |
+| 50 000 | 20.2 MB | 265 ms | 415 ms | 417 MB |
+
+Reading is **linear in the whole log**, not in the page asked for: the fold walks every operation the
+node holds, and RAM is the whole decoded log, roughly ten times the file. That is the design's
+ceiling, not a defect to fix in place — see [Partial replication](#partial-replication-10001000) for
+the change that removes it. What follows from it today:
+
+- **Page the surface.** `read_graph` and `search_nodes` take `limit`/`offset`, so a large graph is read
+  a page at a time — the work per call is the same, but no single call has to build the whole answer.
+- **Compact.** `noonien compact` (or the daemon's own round) rewrites a shard to what the fold still
+  needs, which shrinks the file, the fold and the RAM together.
+- **Restart frees RAM.** Everything is rebuilt from the files on start, so the resident set follows the
+  compacted size rather than the process's high-water mark.
+- **Keep one graph small.** At the measured rate a read after a write crosses a second somewhere past
+  100 000 operations and a few hundred megabytes of heap; an island of ~10 nodes authoring a few hundred
+  operations each stays at tens of milliseconds.
+
 ## Prerequisites
 
 The plan builds on these elements of the current design. The concrete values are given here so the

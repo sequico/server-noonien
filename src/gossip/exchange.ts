@@ -210,18 +210,31 @@ async function remoteStates(
   return rebuildRemoteState(local, differing, await transport.digestBuckets(differing))
 }
 
+/**
+ * Shards reconciled at the same time. A peer may advertise up to the list ceiling
+ * of shards, so this is both the speed-up — a fresh node pulls its shards in
+ * batches instead of one round trip each — and the bound: a round never turns
+ * into thousands of simultaneous requests. The writes stay serialized inside the
+ * replica store, so the batches only overlap the network and the reads.
+ */
+export const CONCURRENT_SHARDS = 8
+
 async function reconcile(input: ReconcileInput): Promise<Exchange> {
   let pulled = 0
   let pushed = 0
-  for (const node of new Set([...input.remote.keys(), ...input.local.keys()])) {
-    // A revoked or departed node's replica is not re-pulled: pulling it back would
-    // undo the discard that freed collection from it.
-    if (input.ignored?.has(node) === true) {
-      continue
+  // A revoked or departed node's replica is not re-pulled: pulling it back would
+  // undo the discard that freed collection from it.
+  const nodes = [...new Set([...input.remote.keys(), ...input.local.keys()])].filter(
+    (node) => input.ignored?.has(node) !== true,
+  )
+  for (let index = 0; index < nodes.length; index += CONCURRENT_SHARDS) {
+    const batch = await Promise.all(
+      nodes.slice(index, index + CONCURRENT_SHARDS).map((node) => reconcileNode(input, node)),
+    )
+    for (const result of batch) {
+      pulled += result.pulled
+      pushed += result.pushed
     }
-    const result = await reconcileNode(input, node)
-    pulled += result.pulled
-    pushed += result.pushed
   }
   return { pulled, pushed }
 }

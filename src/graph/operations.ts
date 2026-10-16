@@ -149,7 +149,7 @@ export type OperationDraft = DistributiveOmit<Operation, EnvelopeKey>
  * official server — so it is keyed apart from the per-occurrence adds and can
  * never be shadowed by one of them during compaction.
  */
-export const CONTENT_DELETE_SLOT = -1
+const CONTENT_DELETE_SLOT = -1
 
 /** A knowledge-graph element addressed by an operation. */
 export type ElementRef =

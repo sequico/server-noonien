@@ -148,12 +148,13 @@ on a specific provider.
 - **Membership as a gossiped CRDT; no SWIM, Consul, etcd or mDNS** — the live peer set is an LWW-set
   propagated over the same channel with suspect/timeout liveness and an inbound rule — a peer that
   reaches us is alive at once (a recovered peer is re-engaged without waiting out its retry
-  backoff), and a joiner we do not know is adopted from the address it announces, so a single seed
-  suffices for the membership to converge in both directions: no external dependency, it fits the
-  CRDT model and works on any underlay. SWIM's canonical implementation is Go (a sidecar) and the
-  Node options are immature, so it would put an unmaintained component on the critical path for a
-  benefit that only shows on large, dynamic clusters; Consul/etcd reintroduce a central server,
-  which the project rejects; mDNS is LAN-only and does not cross the mesh.
+  backoff), and an unknown joiner is offered as a discovery candidate built from the host it reached
+  us from, so a single seed suffices for the membership to converge in both directions (the joiner
+  joins only on its own `/info` answer): no external dependency, it fits the CRDT model and works on
+  any underlay. SWIM's canonical implementation is Go (a sidecar) and the Node options are
+  immature, so it would put an unmaintained component on the critical path for a benefit that only
+  shows on large, dynamic clusters; Consul/etcd reintroduce a central server, which the project
+  rejects; mDNS is LAN-only and does not cross the mesh.
 - **Verified entries** — an entry learned from a node's own `/info` (or an operator seed) is
   authoritative and cannot be overridden by gossip; an address that serves a different node than the
   entry claims is dropped.

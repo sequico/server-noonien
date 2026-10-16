@@ -244,21 +244,12 @@ export class Membership {
   }
 
   /**
-   * Learn a peer from an inbound request. Renews its liveness and, for a node not
-   * yet known, adopts the entry it announced so we can contact it back — this is
-   * what lets a statically-seeded joiner be discovered by the seeds it reached,
-   * since membership is otherwise pull-only. The entry is untrusted, exactly like
-   * a gossiped one: the next sync confirms it against the peer's own `/info` and
-   * marks it verified.
+   * True when `node` is in the peer set, the local node included. A **forgotten** peer is
+   * not: it is out of the set, so a request reaching us from it is offered to discovery
+   * again and comes back confirmed on `/info` instead of being silently dropped.
    */
-  learn(entry: PeerEntry, now = Date.now()): void {
-    if (entry.node === this.selfEntry.node) {
-      return
-    }
-    this.merge([entry], false)
-    if (this.entries.has(entry.node)) {
-      this.recordSuccess(entry.node, now)
-    }
+  has(node: string): boolean {
+    return node === this.selfEntry.node || this.entries.has(node)
   }
 
   /**
@@ -266,8 +257,15 @@ export class Membership {
    * node is reachable by definition, so an inbound request renews liveness and
    * **revives a peer we had marked dead** — no need to wait out its retry
    * backoff. A newer version it announces also refreshes the stored entry. An
-   * unknown node is ignored: an entry needs a verifiable address, learned from
-   * `/info` or a seed.
+   * unknown node is ignored: membership grows from `/info`, from a seed or from a
+   * peer's gossiped list — **never from the headers of an inbound request**, which any
+   * host that can reach the port can send. Adopting one from there would let a
+   * stranger join the mesh and then block every tombstone collection for ever (a peer
+   * that never folds an element holds no frontier, so the gate has to assume it could
+   * hold anything) until an operator departed it by hand. Nothing is lost by refusing:
+   * the server offers the address the request came from as a discovery candidate, so
+   * a statically-seeded joiner is still learned — confirmed against its own `/info`,
+   * exactly like any other candidate.
    */
   touch(node: string, version: number, now = Date.now()): void {
     if (node === this.selfEntry.node) {

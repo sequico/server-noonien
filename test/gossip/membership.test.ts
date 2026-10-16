@@ -115,21 +115,11 @@ describe("Membership", () => {
     const set = membership()
     set.touch("ghost", 1)
     expect(set.known().map((entry) => entry.node)).toEqual(["self"])
-  })
-
-  it("learns a peer it does not know and revives a known one", () => {
-    const set = membership()
-    set.learn({ node: "peer", address: "peer:1", version: 5 }, 1000)
-    expect(set.known().find((entry) => entry.node === "peer")?.address).toBe("peer:1")
-    expect(set.healthOf("peer")).toBe("alive")
-    expect(set.contactable(1000).map((entry) => entry.node)).toEqual(["peer"])
-  })
-
-  it("ignores a learned entry for the local node", () => {
-    const set = membership()
-    set.learn({ node: "self", address: "evil:1", version: 9 })
+    // An inbound request can revive a peer already in the set, never add one: a host
+    // that reaches the port cannot put itself in the mesh.
+    set.touch("ghost", 2)
     expect(set.known().map((entry) => entry.node)).toEqual(["self"])
-    expect(set.known()[0]?.address).toBe("self:27878")
+    expect(set.contactable().map((entry) => entry.node)).toEqual([])
   })
 
   it("forgets a dead peer past the TTL, ignoring its stale gossip", () => {
@@ -154,6 +144,17 @@ describe("Membership", () => {
     // Forgotten: out of the peer set, but its unseen writes may still exist.
     expect(set.known().map((entry) => entry.node)).toEqual(["self"])
     expect(set.retainedNodes()).toEqual(["peer"])
+  })
+
+  it("is not in the peer set once forgotten, so a returning one is proposed again", () => {
+    const set = membership()
+    expect(set.has("self")).toBe(true)
+    expect(set.has("peer")).toBe(false)
+    set.merge([{ node: "peer", address: "peer:1", version: 1 }])
+    expect(set.has("peer")).toBe(true)
+    kill(set, "peer", Date.now())
+    set.prune(Date.now() + MEMBERSHIP_TTL_MS + 1)
+    expect(set.has("peer")).toBe(false)
   })
 
   it("does not retain the local node", () => {
@@ -214,7 +215,7 @@ describe("Membership", () => {
     const set = membership()
     set.merge([{ node: "../evil", address: "evil:1", version: 1 }])
     set.merge([{ node: "a/b", address: "evil:1", version: 1 }])
-    set.learn({ node: "a..b", address: "evil:1", version: 1 })
+    set.merge([{ node: "a..b", address: "evil:1", version: 1 }])
     set.seed([{ node: "with\nnewline", address: "evil:1", version: 1 }])
     expect(set.known().map((entry) => entry.node)).toEqual(["self"])
   })

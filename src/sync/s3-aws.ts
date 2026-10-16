@@ -11,7 +11,7 @@ import {
 } from "@aws-sdk/client-s3"
 import type { AwsS3Config, S3Operations } from "./s3.js"
 
-function isNotFound(error: unknown): boolean {
+function isS3NotFound(error: unknown): boolean {
   const name = (error as { name?: unknown }).name
   const status = (error as { $metadata?: { httpStatusCode?: unknown } }).$metadata?.httpStatusCode
   // A missing object is `NoSuchKey`/`NotFound`. A bare 404 can also be `NoSuchBucket`
@@ -80,7 +80,7 @@ export function createAwsS3Operations(config: AwsS3Config): S3Operations {
         const content = object.Body === undefined ? "" : await object.Body.transformToString()
         return { content, version: requireEtag(key, object.ETag) }
       } catch (error) {
-        if (isNotFound(error)) {
+        if (isS3NotFound(error)) {
           return undefined
         }
         throw error
@@ -92,7 +92,7 @@ export function createAwsS3Operations(config: AwsS3Config): S3Operations {
         const object = await client.send(new HeadObjectCommand({ Bucket: config.bucket, Key: key }))
         return { version: requireEtag(key, object.ETag), size: object.ContentLength ?? 0 }
       } catch (error) {
-        if (isNotFound(error)) {
+        if (isS3NotFound(error)) {
           return undefined
         }
         throw error

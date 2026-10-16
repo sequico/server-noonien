@@ -15,6 +15,7 @@ import {
   shardName,
 } from "../sync/backend.js"
 import { FileBackend } from "../sync/file.js"
+import { MAX_LIST_ENTRIES } from "./protocol.js"
 import type { ShardSummary } from "./types.js"
 
 /**
@@ -47,6 +48,14 @@ function assertBelongsTo(node: string, ops: readonly Operation[]): void {
     }
   }
 }
+
+/**
+ * Ceiling on the shards this store holds. It is the same ceiling a peer may
+ * advertise in one list, so what a peer can offer and what the store can accept
+ * agree — and it is what keeps a peer from naming ten thousand node ids and
+ * filling the directory with one file each.
+ */
+const MAX_HELD_SHARDS = MAX_LIST_ENTRIES
 
 /** The operations of a request that are not already known, marking them known. */
 function selectFresh(known: Set<string>, ops: readonly Operation[]): Operation[] {
@@ -106,26 +115,30 @@ function indexOf(info: ShardStat | undefined, ops: Operation[]): ShardIndex {
  * merge never re-reads the file it just wrote, and a reconciliation only
  * re-parses a shard whose modification time or size changed. A shard only
  * accepts operations of its own node, and writes are serialized, so a replica
- * received from one path cannot race a pull from another.
+ * received from one path cannot race a pull from another. How many shards it
+ * takes on is bounded ({@link ReplicaStore.accepts}), because a peer chooses the
+ * node id both when it pushes and when it advertises one.
  */
 export class ReplicaStore {
   readonly ownNode: string
   private readonly directory: string
   private readonly backend: FileBackend
+  private readonly maxShards: number
   private readonly cache = new Map<string, ShardIndex>()
   private queue: Promise<unknown> = Promise.resolve()
 
-  constructor(directory: string, ownNode: string) {
+  constructor(directory: string, ownNode: string, maxShards = MAX_HELD_SHARDS) {
     this.directory = directory
     this.ownNode = ownNode
     this.backend = new FileBackend(directory)
+    this.maxShards = maxShards
   }
 
-  /** Summary of every shard currently on disk, sorted by node. */
-  async list(): Promise<ShardSummary[]> {
+  /** The nodes this directory holds a shard for, safe ids only. */
+  private async shardNodes(): Promise<string[]> {
     await mkdir(this.directory, { recursive: true })
     const entries = await readdir(this.directory, { withFileTypes: true })
-    const summaries: ShardSummary[] = []
+    const nodes: string[] = []
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith(SHARD_EXTENSION)) {
         continue
@@ -133,9 +146,30 @@ export class ReplicaStore {
       const node = nodeOfShard(entry.name)
       // Skip a file whose stem is not a safe node id (an `a..b.jsonl` left by hand):
       // it is not a shard this daemon manages and must not reach a path builder.
-      if (!isSafeNodeId(node)) {
-        continue
+      if (isSafeNodeId(node)) {
+        nodes.push(node)
       }
+    }
+    return nodes
+  }
+
+  /**
+   * True when `node` may be taken on as a shard this store does not hold yet. A
+   * shard already held is always fine; a new one is refused at the ceiling, so
+   * neither a peer pushing to a node id it invented nor one advertising thousands
+   * of them can grow the directory without bound.
+   */
+  async accepts(node: string): Promise<boolean> {
+    if ((await this.backend.stat(shardName(node))) !== undefined) {
+      return true
+    }
+    return (await this.shardNodes()).length < this.maxShards
+  }
+
+  /** Summary of every shard currently on disk, sorted by node. */
+  async list(): Promise<ShardSummary[]> {
+    const summaries: ShardSummary[] = []
+    for (const node of await this.shardNodes()) {
       const index = await this.index(node)
       summaries.push({
         node,
@@ -202,6 +236,9 @@ export class ReplicaStore {
     if (node === this.ownNode) {
       throw new Error(`refusing to replace the local shard "${node}" from gossip`)
     }
+    if (!(await this.accepts(node))) {
+      throw this.refusal(node)
+    }
     for (const op of ops) {
       if (op.node !== node) {
         throw new Error(`operation ${op.id} belongs to node "${op.node}", not "${node}"`)
@@ -234,6 +271,9 @@ export class ReplicaStore {
       return 0
     }
     assertBelongsTo(node, ops)
+    if (!(await this.accepts(node))) {
+      throw this.refusal(node)
+    }
     const index = await this.index(node)
     const fresh = selectFresh(new Set(index.ids), ops)
     if (fresh.length === 0) {
@@ -260,6 +300,14 @@ export class ReplicaStore {
       this.cache.delete(path)
     }
     return fresh.length
+  }
+
+  /** The error a new shard gets when the store is already at its ceiling. */
+  private refusal(node: string): Error {
+    return new Error(
+      `refusing a new shard for node "${node}": this store already holds ` +
+        `${this.maxShards} shards, the same ceiling a peer may advertise`,
+    )
   }
 
   /** The cached index of a shard, refreshed when the file changed on disk. */

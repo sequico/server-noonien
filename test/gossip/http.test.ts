@@ -11,7 +11,11 @@ import { syncWith } from "../../src/gossip/exchange.js"
 import type { Membership } from "../../src/gossip/membership.js"
 import { DIGEST_CAPABILITY, PROTOCOL_VERSION } from "../../src/gossip/protocol.js"
 import { ReplicaStore } from "../../src/gossip/replica.js"
-import { type GossipServer, startGossipServer } from "../../src/gossip/server.js"
+import {
+  type GossipServer,
+  type GossipServerOptions,
+  startGossipServer,
+} from "../../src/gossip/server.js"
 import { HttpTransport } from "../../src/gossip/transport.js"
 import { encodeOperation } from "../../src/graph/codec.js"
 import { foldOperations } from "../../src/graph/fold.js"
@@ -45,7 +49,7 @@ interface Node {
 const directories: string[] = []
 const servers: GossipServer[] = []
 
-async function newNode(node: string): Promise<Node> {
+async function newNode(node: string, extra: Partial<GossipServerOptions> = {}): Promise<Node> {
   const directory = await mkdtemp(join(tmpdir(), "noonien-http-"))
   directories.push(directory)
   const store = new ReplicaStore(directory, node)
@@ -56,6 +60,7 @@ async function newNode(node: string): Promise<Node> {
     tls: undefined,
     replica: store,
     membership,
+    ...extra,
   })
   servers.push(server)
   return {
@@ -117,30 +122,39 @@ describe("gossip HTTP service", () => {
     expect(ai.membership.contactable().map((entry) => entry.node)).toContain("z600")
   })
 
-  it("learns a peer from an address that matches where it is connecting from", async () => {
-    const ai = await newNode("ai")
+  it("offers an unknown announcer as a candidate built from where it came from", async () => {
+    const proposed: string[] = []
+    const ai = await newNode("ai", { inboundCandidate: (address) => proposed.push(address) })
     expect(ai.membership.known().map((entry) => entry.node)).toEqual(["ai"])
 
-    const zToAi = new HttpTransport(ai.address, undefined, 10_000, undefined, undefined, {
-      node: "Z600",
-      address: "127.0.0.1:9999",
-      version: 7,
-    })
-    await zToAi.info()
-    expect(ai.membership.known().map((entry) => entry.node)).toEqual(["ai", "Z600"])
-    expect(ai.membership.healthOf("Z600")).toBe("alive")
-    expect(ai.membership.contactable().map((entry) => entry.node)).toContain("Z600")
-  })
-
-  it("does not adopt a peer announcing an address it is not connecting from", async () => {
-    const ai = await newNode("ai")
-    const zToAi = new HttpTransport(ai.address, undefined, 10_000, undefined, undefined, {
-      node: "Z600",
-      address: "169.254.169.254:80",
-      version: 7,
-    })
-    await zToAi.info()
+    // A peer enters the mesh from `/info`, a seed or a gossiped list — never from the
+    // headers of a request: neither the id nor the version it announces is adopted. An
+    // unknown caller is offered as a discovery candidate instead, which the daemon
+    // confirms on `/info`. The candidate keeps the host the request came from, so the
+    // address a stranger announces for another host is not even probed.
+    for (const announce of [
+      { node: "Z600", address: "127.0.0.1:9999", version: 7 },
+      { node: "Z600", address: "169.254.169.254:80", version: 7 },
+    ]) {
+      const zToAi = new HttpTransport(ai.address, undefined, 10_000, undefined, undefined, announce)
+      await zToAi.info()
+    }
     expect(ai.membership.known().map((entry) => entry.node)).toEqual(["ai"])
+    expect(ai.membership.contactable().map((entry) => entry.node)).toEqual([])
+    expect(proposed).toEqual(["127.0.0.1:9999"])
+
+    // A caller that is already a peer proposes nothing: it is in the set, and the
+    // version it announces refreshes its entry.
+    ai.membership.merge([{ node: "Z600", address: "z600:9999", version: 1 }])
+    proposed.length = 0
+    const known = new HttpTransport(ai.address, undefined, 10_000, undefined, undefined, {
+      node: "Z600",
+      address: "z600:9999",
+      version: 2,
+    })
+    await known.info()
+    expect(proposed).toEqual([])
+    expect(ai.membership.known().find((entry) => entry.node === "Z600")?.version).toBe(2)
   })
 
   it("does not adopt a peer announcing an unsafe node id", async () => {
@@ -270,12 +284,138 @@ describe("gossip HTTP service", () => {
         seq: 0,
       },
     )
-    const response = await fetch(`http://${node.address}/shards/ai/ops`, {
+    const response = await fetch(`http://${node.address}/shards/z600/ops`, {
       method: "POST",
       headers: { "content-type": "application/x-ndjson" },
       body: `${encodeOperation(foreign)}\n`,
     })
     expect(response.status).toBe(400)
+  })
+
+  it("refuses a push for the local node's own shard", async () => {
+    const node = await newNode("ai")
+    const own = op(A_DRAFTS[0] as OperationDraft, { ts: T1, node: "ai", seq: 9 })
+    const response = await fetch(`http://${node.address}/shards/ai/ops`, {
+      method: "POST",
+      headers: { "content-type": "application/x-ndjson" },
+      body: `${encodeOperation(own)}\n`,
+    })
+    expect(response.status).toBe(403)
+    expect(((await response.json()) as { error: string }).error).toContain("own shard")
+  })
+
+  it("refuses a new shard once the store is at its ceiling", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "noonien-cap-"))
+    directories.push(directory)
+    // A ceiling of two shards, so the refusal is reachable without ten thousand files.
+    const server = await startGossipServer({
+      host: "127.0.0.1",
+      port: 0,
+      tls: undefined,
+      replica: new ReplicaStore(directory, "ai", 2),
+      membership: testMembership("ai", "ai:0"),
+    })
+    servers.push(server)
+    const push = async (node: string): Promise<number> => {
+      const entry = op(
+        { type: "entity.create", name: "X", entityType: "t" },
+        {
+          ts: T1,
+          node,
+          seq: 0,
+        },
+      )
+      const response = await fetch(`http://${server.address}/shards/${node}/ops`, {
+        method: "POST",
+        headers: { "content-type": "application/x-ndjson" },
+        body: `${encodeOperation(entry)}\n`,
+      })
+      return response.status
+    }
+
+    expect(await push("z600")).toBe(200)
+    expect(await push("lenovo")).toBe(200)
+    // At the ceiling: a node id nobody invented yet is refused with a status the
+    // peer can act on, and a shard already held keeps accepting more operations.
+    expect(await push("mail-greensley")).toBe(507)
+    expect(await push("z600")).toBe(200)
+  })
+
+  it("rejects a pushed body over the cap without buffering it", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "noonien-body-"))
+    directories.push(directory)
+    const server = await startGossipServer({
+      host: "127.0.0.1",
+      port: 0,
+      tls: undefined,
+      replica: new ReplicaStore(directory, "ai"),
+      membership: testMembership("ai", "ai:0"),
+      maxBodyBytes: 1024,
+    })
+    servers.push(server)
+    const entry = op(
+      { type: "entity.create", name: "X", entityType: "t" },
+      {
+        ts: T1,
+        node: "z600",
+        seq: 0,
+      },
+    )
+    const body = `${encodeOperation(entry)}\n`
+    const post = (payload: string | ReadableStream<Uint8Array>): Promise<Response> =>
+      fetch(`http://${server.address}/shards/z600/ops`, {
+        method: "POST",
+        headers: { "content-type": "application/x-ndjson" },
+        body: payload,
+        duplex: "half",
+      })
+
+    // Under the cap: accepted. A string body declares its length, so this covers the
+    // declared check too.
+    expect((await post(body)).status).toBe(200)
+    // Over the cap, streamed with no declared length: refused while reading, so the
+    // buffer never grows past the cap and nothing is written.
+    const over = await post(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(body.repeat(8)))
+          controller.close()
+        },
+      }),
+    )
+    expect(over.status).toBe(413)
+    expect(await new HttpTransport(server.address, undefined).shards()).toEqual([
+      { node: "z600", count: 1, maxSeq: 0, generation: 0 },
+    ])
+  })
+
+  it("refuses to fold more operations on /graph than the ceiling allows", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "noonien-graph-"))
+    directories.push(directory)
+    const server = await startGossipServer({
+      host: "127.0.0.1",
+      port: 0,
+      tls: undefined,
+      replica: new ReplicaStore(directory, "ai"),
+      membership: testMembership("ai", "ai:0"),
+      maxGraphOps: 1,
+    })
+    servers.push(server)
+    await new ShardLog(new FileBackend(directory), "ai").append(A_DRAFTS)
+    const refused = await fetch(`http://${server.address}/graph`)
+    expect(refused.status).toBe(413)
+    expect(((await refused.json()) as { error: string }).error).toContain("2 operations")
+
+    const served = await startGossipServer({
+      host: "127.0.0.1",
+      port: 0,
+      tls: undefined,
+      replica: new ReplicaStore(directory, "ai"),
+      membership: testMembership("ai", "ai:0"),
+      maxGraphOps: 2,
+    })
+    servers.push(served)
+    expect((await fetch(`http://${served.address}/graph`)).status).toBe(200)
   })
 
   it("rejects an unsupported method on the operations route", async () => {

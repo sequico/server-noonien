@@ -77,7 +77,7 @@ export class Hlc {
   }
 
   /** The current stamp, `>=` every issued and observed stamp. */
-  peek(): string {
+  private peek(): string {
     return encodeHlc(this.physicalMs, this.counter)
   }
 

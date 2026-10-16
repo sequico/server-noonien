@@ -8,7 +8,7 @@ import { join } from "node:path"
 import fc from "fast-check"
 import { describe, expect, it } from "vitest"
 import { computeDigest } from "../../src/gossip/digest.js"
-import { syncMembership, syncWith } from "../../src/gossip/exchange.js"
+import { CONCURRENT_SHARDS, syncMembership, syncWith } from "../../src/gossip/exchange.js"
 import {
   DIGEST_CAPABILITY,
   type DigestDto,
@@ -77,6 +77,36 @@ async function tempDirectories(count: number, prefix: string): Promise<string[]>
 
 async function cleanUp(directories: readonly string[]): Promise<void> {
   await Promise.all(directories.map((directory) => rm(directory, { recursive: true, force: true })))
+}
+
+/** A transport that records how many shard requests it has in flight at once. */
+function countingTransport(transport: PeerTransport): {
+  transport: PeerTransport
+  state: { inFlight: number; peak: number }
+} {
+  const state = { inFlight: 0, peak: 0 }
+  const track = async <T>(run: () => Promise<T>): Promise<T> => {
+    state.inFlight += 1
+    state.peak = Math.max(state.peak, state.inFlight)
+    try {
+      return await run()
+    } finally {
+      state.inFlight -= 1
+    }
+  }
+  return {
+    transport: {
+      address: transport.address,
+      info: () => transport.info(),
+      membership: () => transport.membership(),
+      shards: () => transport.shards(),
+      digest: () => transport.digest(),
+      digestBuckets: (indexes) => transport.digestBuckets(indexes),
+      opsAfter: (node, afterSeq) => track(() => transport.opsAfter(node, afterSeq)),
+      pushOps: (node, ops) => track(() => transport.pushOps(node, ops)),
+    },
+    state,
+  }
 }
 
 async function authorShards(
@@ -163,6 +193,37 @@ async function checkSubsetConvergence(plan: readonly (readonly number[])[]): Pro
 }
 
 describe("syncWith", () => {
+  it("reconciles shards in bounded parallel batches", async () => {
+    const directories = [...(await tempDirectories(12, "noonien-batch-"))]
+    const freshDirectory = await mkdtemp(join(tmpdir(), "noonien-batch-fresh-"))
+    directories.push(freshDirectory)
+    try {
+      const peers = await authorShards(
+        Array.from({ length: 12 }, (_, index) => [index, index + 6]),
+        directories.slice(0, 12),
+      )
+      const collector = requirePeer(peers, 0)
+      // The collector gathers the other eleven shards, so one exchange with it has
+      // more shards to reconcile than a single batch holds.
+      for (const peer of peers.slice(1)) {
+        await syncPeers(collector, peer)
+      }
+      const counted = countingTransport(new DirectTransport(collector))
+      const fresh = directPeer("fresh", freshDirectory)
+
+      await syncWith(collector.membership.self(), counted.transport, fresh.store, fresh.membership)
+
+      // Every shard arrived, and the exchange ran one batch of shard requests at a
+      // time instead of a round trip per shard or a burst of twelve.
+      expect((await fresh.store.list()).map((shard) => shard.node).sort()).toEqual(
+        peers.map((peer) => peer.node).sort(),
+      )
+      expect(counted.state.peak).toBe(CONCURRENT_SHARDS)
+    } finally {
+      await cleanUp(directories)
+    }
+  })
+
   it("converges on the union of every shard under arbitrary operation sequences", async () => {
     await fc.assert(
       fc.asyncProperty(

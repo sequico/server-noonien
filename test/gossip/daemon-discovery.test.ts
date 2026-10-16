@@ -123,4 +123,33 @@ describe("discovery candidates", () => {
     await until(async () => (await membershipSize(b.url)) >= 2)
     expect(await peerIds(b.url)).toContain("real-a")
   })
+
+  it("adopts a joiner that reached it, taking the id from its own `/info`", async () => {
+    const portA = await freePort()
+    const a = await startDaemon(
+      "seed-a",
+      await tempDirectory(),
+      portA,
+      `127.0.0.1:${await freePort()}`,
+    )
+    // B is seeded with a bare address, so nothing tells A that B exists: B's own first
+    // exchange is all. A must offer the address that request came from as a candidate
+    // and learn the id from B's own `/info` — never from the headers B announced.
+    const b = await startDaemon(
+      "joiner-b",
+      await tempDirectory(),
+      await freePort(),
+      `127.0.0.1:${portA}`,
+    )
+    await until(async () => (await peerIds(b.url)).includes("seed-a"))
+    await until(async () => {
+      await a.syncOnce()
+      return (await peerIds(a.url)).includes("joiner-b")
+    })
+    // Adopted as a verified member, so it is contactable and the two replicate.
+    await until(async () => {
+      await a.syncOnce()
+      return (await membershipSize(a.url)) === 2
+    })
+  })
 })

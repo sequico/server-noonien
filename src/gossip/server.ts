@@ -19,8 +19,23 @@ import type { Membership } from "./membership.js"
 import { DIGEST_CAPABILITY, MAX_WIRE_BYTES, PROTOCOL_VERSION } from "./protocol.js"
 import type { ReplicaStore } from "./replica.js"
 
+/** What a peer announced in the request headers, if anything. */
+interface Announced {
+  readonly node: string
+  readonly address: string | undefined
+  readonly version: number
+}
+
 /** Maximum accepted size of a pushed operations body. */
 const MAX_BODY_BYTES = MAX_WIRE_BYTES
+/**
+ * Operations the `/graph` diagnostic route will fold in one request. Past this it
+ * refuses instead of truncating: measured on a synthetic log, a read after a write
+ * over 50 000 operations costs about 0.4 s and a few hundred megabytes of heap, so one
+ * request must not be able to ask for it — the per-shard route serves the same data a
+ * page at a time.
+ */
+const MAX_GRAPH_OPS = 50_000
 /** Bytes of NDJSON buffered before one write, so a large delta is not one write per op. */
 const WRITE_CHUNK_BYTES = 256 * 1024
 
@@ -52,6 +67,17 @@ export interface GossipServerOptions {
   readonly watermark?: () => Record<string, number>
   /** Node ids refused outright — a revoked peer is rejected on every route. */
   readonly revoked?: ReadonlySet<string>
+  /** Maximum accepted size of a pushed body; defaults to the wire cap. */
+  readonly maxBodyBytes?: number
+  /** Operations the `/graph` route folds in one request; defaults to the ceiling. */
+  readonly maxGraphOps?: number
+  /**
+   * Offered the `host:port` of a caller that is not a peer yet, when the host it
+   * announces is the one the request came from, so the daemon can probe it on `/info`
+   * and adopt it if it answers. This is how a statically-seeded joiner is discovered by
+   * the seeds it reached: membership itself never grows from the headers of a request.
+   */
+  readonly inboundCandidate?: (address: string) => void
 }
 
 export interface GossipServer {
@@ -122,12 +148,20 @@ async function handle(
 
 /**
  * A peer that reaches us is alive: mark it so, reviving it from the dead backoff
- * without waiting out its retry. With mTLS the certificate names it; otherwise the
- * entry it announces in the request headers does. If it announces an address we do
- * not know yet, adopt it (untrusted, like a gossiped entry) so a statically-seeded
- * joiner becomes a peer the seeds can contact back and then gossip onward; the next
- * sync confirms it against the peer's own `/info`. A mismatch between the
- * certificate and the announced node is ignored — the certificate wins.
+ * without waiting out its retry.
+ *
+ * A caller that is **not** a peer yet is never adopted from its headers: nothing it
+ * sends becomes membership, and its id is never taken on trust. It is offered as a
+ * discovery candidate instead, on the same terms as any other — the daemon probes it and
+ * takes the id from its own `/info`, so a statically-seeded joiner is still discovered by
+ * the seeds it reached, and a host that does not answer never becomes a member and never
+ * blocks collection. The candidate is built from the **host the request came from** and
+ * only the port it announces, so nothing a stranger sends can point the dialer at another
+ * host: an address announced for a different host is not even probed.
+ *
+ * With mTLS the certificate names the peer and wins; a mismatch between the
+ * certificate and the announced node is ignored, and the announced version is
+ * only read when the certificate agrees.
  */
 function reviveCaller(
   options: GossipServerOptions,
@@ -139,41 +173,33 @@ function reviveCaller(
   if (node === undefined) {
     return
   }
-  if (
-    announced?.node === node &&
-    announced.address !== undefined &&
-    Number.isFinite(announced.version) &&
-    addressMatchesSource(request, announced.address)
-  ) {
-    options.membership.learn({ node, address: announced.address, version: announced.version })
-    return
-  }
   options.membership.touch(node, announced?.node === node ? announced.version : Number.NaN)
+  if (
+    options.inboundCandidate !== undefined &&
+    !options.membership.has(node) &&
+    announced?.address !== undefined &&
+    addressHost(announced.address) === sourceHost(request)
+  ) {
+    options.inboundCandidate(announced.address)
+  }
+}
+
+/** The host a request came from, its IPv4-mapped IPv6 prefix stripped. */
+function sourceHost(request: IncomingMessage): string | undefined {
+  const remote = request.socket.remoteAddress
+  if (remote === undefined) {
+    return undefined
+  }
+  return remote.startsWith("::ffff:") ? remote.slice("::ffff:".length) : remote
 }
 
 /**
- * True when a peer's announced address is the host it is actually reaching this
- * node from. Adopting only a matching address keeps an unauthenticated caller from
- * pointing the dialer at an arbitrary host through the `x-noonien-address` header
- * (SSRF); a peer whose advertised host differs from its source (a NAT) is not
- * adopted automatically and can be added as a seed instead.
+ * The `x-noonien-node` / `-address` / `-version` a peer announced, if any. A node id that
+ * is not path-safe is ignored outright: it would grow membership and the `{node}` metric
+ * label without bound.
  */
-function addressMatchesSource(request: IncomingMessage, address: string): boolean {
-  const remote = request.socket.remoteAddress
-  if (remote === undefined) {
-    return false
-  }
-  const source = remote.startsWith("::ffff:") ? remote.slice("::ffff:".length) : remote
-  return addressHost(address) === source
-}
-
-/** The `x-noonien-node` / `-address` / `-version` a peer announced, if any. */
-function announceOf(
-  request: IncomingMessage,
-): { node: string; address: string | undefined; version: number } | undefined {
+function announceOf(request: IncomingMessage): Announced | undefined {
   const node = request.headers["x-noonien-node"]
-  // A malformed node id must not enter the peer set: it would grow membership and
-  // the `{node}` metric label without bound. Only a path-safe id is adopted.
   if (typeof node !== "string" || !isSafeNodeId(node)) {
     return undefined
   }
@@ -223,6 +249,16 @@ async function handleGet(
     return true
   }
   if (url.pathname === "/graph") {
+    const ceiling = options.maxGraphOps ?? MAX_GRAPH_OPS
+    const total = (await options.replica.list()).reduce((sum, shard) => sum + shard.count, 0)
+    if (total > ceiling) {
+      send(response, 413, {
+        error:
+          `the local replica holds ${total} operations, above the ${ceiling} this ` +
+          "route serves in one request; read the shards instead",
+      })
+      return true
+    }
     send(response, 200, foldOperations(await options.replica.allOps()))
     return true
   }
@@ -355,15 +391,20 @@ async function handleOps(
     return true
   }
   if (method === "POST") {
-    if (options.revoked?.has(name) === true) {
-      send(response, 403, { error: `node "${name}" is revoked` })
+    const refusal = pushRefusal(options, request, name)
+    if (refusal !== undefined) {
+      send(response, 403, { error: refusal })
       return true
     }
-    if (options.tls?.requireClient === true && peerNode(request) !== name) {
-      send(response, 403, { error: "client certificate does not authorize this shard" })
+    // Refused before the body is buffered: the caller named this node id, so at the
+    // ceiling it is the store that has no room, whatever the body turns out to be.
+    if (!(await options.replica.accepts(name))) {
+      send(response, 507, {
+        error: `this node already holds the maximum number of shards, so "${name}" is refused`,
+      })
       return true
     }
-    const ops = decodeOperations(await readBody(request))
+    const ops = decodeOperations(await readBody(request, options.maxBodyBytes ?? MAX_BODY_BYTES))
     const foreign = ops.find((op) => op.node !== name)
     if (foreign !== undefined) {
       send(response, 400, {
@@ -426,25 +467,48 @@ function send(response: ServerResponse, status: number, payload: unknown): void 
 }
 
 /**
+ * Why a push for `{name}` is refused with `403`, or `undefined` when it is allowed: the
+ * node is revoked, it is the local node's own shard (only the owner writes that one — it
+ * recovers what it lost from a peer's replica itself), or the request's certificate does
+ * not authorize it.
+ */
+function pushRefusal(
+  options: GossipServerOptions,
+  request: IncomingMessage,
+  name: string,
+): string | undefined {
+  if (options.revoked?.has(name) === true) {
+    return `node "${name}" is revoked`
+  }
+  if (name === options.replica.ownNode) {
+    return `node "${name}" may not push its own shard`
+  }
+  if (options.tls?.requireClient === true && peerNode(request) !== name) {
+    return "client certificate does not authorize this shard"
+  }
+  return undefined
+}
+
+/**
  * Read the (bounded) request body. A declared `content-length` over the cap is
  * rejected before buffering, so a lying or stalled client cannot hold a large
  * buffer; the streaming check still guards a body with no `content-length`.
  */
-function readBody(request: IncomingMessage): Promise<string> {
+function readBody(request: IncomingMessage, maxBytes = MAX_BODY_BYTES): Promise<string> {
   const declared = Number(request.headers["content-length"])
-  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
-    return Promise.reject(new PayloadTooLargeError(`request body exceeds ${MAX_BODY_BYTES} bytes`))
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    return Promise.reject(new PayloadTooLargeError(`request body exceeds ${maxBytes} bytes`))
   }
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     let size = 0
     request.on("data", (chunk: Buffer) => {
       size += chunk.length
-      if (size > MAX_BODY_BYTES) {
+      if (size > maxBytes) {
         // Stop reading without destroying the socket, so the handler can still send
         // the 413 before the connection is closed.
         request.pause()
-        reject(new PayloadTooLargeError(`request body exceeds ${MAX_BODY_BYTES} bytes`))
+        reject(new PayloadTooLargeError(`request body exceeds ${maxBytes} bytes`))
         return
       }
       chunks.push(chunk)

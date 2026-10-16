@@ -137,7 +137,8 @@ export async function startGossip(
   // announces it owns the directory, and the server and `noonien compact` consult it
   // before deciding whether a collection without it is allowed. Without this, a daemon
   // that has not completed a round yet would be invisible, and either could collect while
-  // it is about to replicate — the one window a knowledge file can close.
+  // it is about to replicate — the one window a knowledge file can close. This first call
+  // always writes; a later one only when a round changed a record.
   await knowledge.save()
   // Discovery proposes; membership disposes. A `node@host:port` static seed is
   // operator intent and enters membership directly, while a bare address (a Tailscale
@@ -196,6 +197,12 @@ export async function startGossip(
     metrics,
     watermark: () => Object.fromEntries(stable),
     revoked: ignored,
+    // A caller that is not a member yet is probed on `/info` before it joins, on the
+    // same terms as a discovery candidate: its id comes from its own answer, and a host
+    // that does not answer never becomes a member and never blocks collection.
+    inboundCandidate: (address) => {
+      candidates.add([address])
+    },
   })
 
   let running = false

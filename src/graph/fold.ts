@@ -20,7 +20,6 @@ interface Winner {
  */
 interface ObservationGroup {
   readonly entityName: string
-  readonly content: string
   readonly adds: Map<number, Operation>
   lastDelete: Operation | undefined
 }
@@ -48,7 +47,7 @@ function observationGroup(
   if (existing !== undefined) {
     return existing
   }
-  const group: ObservationGroup = { entityName, content, adds: new Map(), lastDelete: undefined }
+  const group: ObservationGroup = { entityName, adds: new Map(), lastDelete: undefined }
   map.set(key, group)
   return group
 }
@@ -99,28 +98,51 @@ function presentEntities(entities: Map<string, Winner>): Map<string, Entity> {
   return byName
 }
 
+/** Append the additions of one observation group that no later delete has shadowed. */
+function collectSurviving(group: ObservationGroup, into: Operation[]): void {
+  for (const add of group.adds.values()) {
+    if (group.lastDelete === undefined || compareOperations(add, group.lastDelete) > 0) {
+      into.push(add)
+    }
+  }
+}
+
+/**
+ * Attach every entity's surviving observations to it, in operation order.
+ *
+ * The order is the one a single sort of all the additions produced, computed per entity
+ * instead: restricting a total order to a subsequence keeps it, so the result is
+ * identical, while summing `n_i log n_i` over the entities stays below `n log n` for
+ * every graph whose observations are spread over its entities — the common case — and
+ * the temporary list of every addition in the graph is gone.
+ */
 function attachObservations(
   observations: Map<string, ObservationGroup>,
   byName: Map<string, Entity>,
 ): void {
-  const additions: {
-    readonly op: Operation
-    readonly entityName: string
-    readonly content: string
-  }[] = []
+  // The surviving additions of each entity, gathered per entity: an entity's list spans
+  // every content added to it, so the order is only known once they are together.
+  const perEntity = new Map<string, Operation[]>()
   for (const group of observations.values()) {
     if (!byName.has(group.entityName)) {
       continue
     }
-    for (const add of group.adds.values()) {
-      if (group.lastDelete === undefined || compareOperations(add, group.lastDelete) > 0) {
-        additions.push({ op: add, entityName: group.entityName, content: group.content })
+    const present = perEntity.get(group.entityName) ?? []
+    collectSurviving(group, present)
+    perEntity.set(group.entityName, present)
+  }
+  for (const [name, present] of perEntity) {
+    const entity = byName.get(name)
+    if (entity === undefined) {
+      continue
+    }
+    present.sort(compareOperations)
+    for (const add of present) {
+      // `adds` only ever holds `observation.add` operations; the guard narrows the type.
+      if (add.type === "observation.add") {
+        entity.observations.push(add.content)
       }
     }
-  }
-  additions.sort((a, b) => compareOperations(a.op, b.op))
-  for (const addition of additions) {
-    byName.get(addition.entityName)?.observations.push(addition.content)
   }
 }
 

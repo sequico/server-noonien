@@ -23,4 +23,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
+# The `node` user shipped with the image owns the state directory (`NOONIEN_DIR`,
+# `~/.noonien` by default), so nothing needs to write as root inside the container.
+USER node
 ENTRYPOINT ["node", "dist/index.js"]

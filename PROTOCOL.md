@@ -37,8 +37,7 @@ consensus, only eventual completeness.
   node id always comes from that answer, never from the discovery source, so a device on the network
   that does not run `nooniend` is never adopted.
 - Every request carries the caller's identity in three request headers, so a peer that is reached can
-  mark the caller alive (and a node it does not yet know can be adopted from its **source-matched**
-  address):
+  mark a caller it already knows alive:
 
   | Header | Meaning |
   | --- | --- |
@@ -46,9 +45,11 @@ consensus, only eventual completeness.
   | `x-noonien-address` | The caller's advertised `host:port`. |
   | `x-noonien-version` | The caller's integer version. |
 
-  An announced address is adopted only when its host matches the TCP source address of the request
-  (an SSRF guard); a peer whose advertised host differs from its source — a NAT — is not adopted
-  automatically and must be added as a seed instead.
+  A caller that is **not** a member yet is never adopted from these headers. It is offered as a
+  discovery candidate instead: the **host the request came from** with the port it announced — never
+  its advertised host, so an announced address cannot point the dialer elsewhere — and the candidate
+  joins the membership only after answering `GET /info`, which is also where its node id comes from.
+  This is how a statically-seeded joiner is discovered by the seeds it reached.
 
 ## Messages
 
@@ -62,7 +63,7 @@ the operations routes use `application/x-ndjson`.
 | `GET` | `/peers` | The peer set with live health: `{"peers":[{"node","address","version","health"}]}`, `health` one of `alive`, `suspect`, `dead`. |
 | `GET` | `/membership` | The peer set without health — the payload nodes gossip: `{"peers":[{"node","address","version"}]}`. |
 | `GET` | `/status` | Summary: `{"node","version","protocol","uptimeSec","shards","peers":{"total","alive","suspect","dead"}}` (peer counts exclude the local node). |
-| `GET` | `/graph` | The whole knowledge graph folded from the replicas on disk: `{"entities","relations"}`. |
+| `GET` | `/graph` | The whole knowledge graph folded from the replicas on disk: `{"entities","relations"}`. Above 50 000 operations it answers `413` and asks for the shards, which serve the same data a page at a time. |
 | `GET` | `/shards` | Per-shard summaries: `{"shards":[{"node","count","maxSeq","generation"}]}`. |
 | `GET` | `/shards/digest` | The shard digest: `{"root","buckets":[{"index","hash","count"}]}`. With `?buckets=1,3,5`, just those buckets' summaries as `{"shards":[…]}`. |
 | `GET` | `/shards/{node}/ops?after=N` | The operations of `{node}` after sequence `N`, as NDJSON (see below). |
@@ -71,8 +72,10 @@ the operations routes use `application/x-ndjson`.
 | `GET` | `/watermark` | Per-shard stable high-water mark across the contactable peers: `{"<node>": <seq>, …}`. |
 
 An unknown path answers `404`, an unsupported method `405`, a revoked caller or an unauthorized push
-`403`, a malformed node id or bucket list `400`, an oversized body `413`, and an internal failure
-`500`. Every error body is `{"error":"<message>"}` and never echoes server-side state.
+(including a push for the local node's own shard) `403`, a malformed node id or bucket list `400`, an
+oversized body or a graph past the fold ceiling `413`, a store already holding as many shards as a
+peer may advertise `507`, and an internal failure `500`. Every error body is `{"error":"<message>"}` and
+never echoes server-side state.
 
 ## Operations
 

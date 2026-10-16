@@ -64,6 +64,25 @@ describe("PeerKnowledge", () => {
     expect(knowledge.nodes()).toEqual(["b"])
   })
 
+  it("writes once for the announcement, then only when a record changed", async () => {
+    const path = await tempPath()
+    const knowledge = await PeerKnowledge.load(path)
+    // The first write is how the daemon announces it owns the directory, so it happens
+    // even with nothing recorded.
+    expect(await knowledge.save()).toBe(true)
+    // A round that learned nothing must not rewrite the file.
+    expect(await knowledge.save()).toBe(false)
+    knowledge.record("a", new Map([["b", 1]]), 10)
+    expect(await knowledge.save()).toBe(true)
+    expect(await knowledge.save()).toBe(false)
+    knowledge.forget("a")
+    expect(await knowledge.save()).toBe(true)
+    // Forgetting a peer it never knew changes nothing, so nothing is written.
+    knowledge.forget("ghost")
+    expect(await knowledge.save()).toBe(false)
+    expect(await (await PeerKnowledge.load(path)).frontier("a")).toBeUndefined()
+  })
+
   it("round-trips through disk", async () => {
     const path = await tempPath()
     const first = await PeerKnowledge.load(path)

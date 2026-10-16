@@ -138,6 +138,10 @@ export class PeerKnowledge {
   private retired = new Map<string, number>()
   /** Node ids whose protection is a durable blanket: a retired, unaccounted peer. */
   private blankets = new Set<string>()
+  /** Set by every mutation, so a round that learned nothing does not rewrite the file. */
+  private dirty = false
+  /** True once the file has been written, which is how the daemon announces itself. */
+  private written = false
 
   private constructor(path: string) {
     this.path = path
@@ -201,6 +205,7 @@ export class PeerKnowledge {
       }
     }
     this.peers.set(node, { lastSeen: now, shards: merged })
+    this.dirty = true
   }
 
   /**
@@ -221,6 +226,7 @@ export class PeerKnowledge {
         this.retired.set(author, seq)
       }
     }
+    this.dirty = true
   }
 
   /**
@@ -231,6 +237,7 @@ export class PeerKnowledge {
    */
   blanket(node: string): void {
     this.blankets.add(node)
+    this.dirty = true
   }
 
   /** The retired frontier, elementwise-maximum per author. */
@@ -249,7 +256,9 @@ export class PeerKnowledge {
    * is what cost a per-round lookup and a metric series — is no longer needed.
    */
   forget(node: string): void {
-    this.peers.delete(node)
+    if (this.peers.delete(node)) {
+      this.dirty = true
+    }
   }
 
   /**
@@ -259,8 +268,9 @@ export class PeerKnowledge {
    * deliberately not touched — see {@link retire}.
    */
   depart(node: string): void {
-    this.peers.delete(node)
-    this.blankets.delete(node)
+    if (this.peers.delete(node) || this.blankets.delete(node)) {
+      this.dirty = true
+    }
   }
 
   /** What a peer held at the last exchange, or `undefined` when never reached. */
@@ -278,8 +288,16 @@ export class PeerKnowledge {
     return [...this.peers.keys()]
   }
 
-  /** Persist atomically, so a crash cannot leave a half-written record. */
-  async save(): Promise<void> {
+  /**
+   * Persist atomically, so a crash cannot leave a half-written record. Returns
+   * whether anything was written: the first call always is — that file is how the
+   * daemon announces it owns the directory — and after that only when a record
+   * changed, so a round that learned nothing costs no write.
+   */
+  async save(): Promise<boolean> {
+    if (!this.dirty && this.written) {
+      return false
+    }
     // Object.fromEntries creates own properties, so a peer literally named
     // "__proto__" is written instead of mutating the record's prototype and
     // vanishing from the file (dropping its frontier and unblocking a deletion).
@@ -300,5 +318,8 @@ export class PeerKnowledge {
     const temp = `${this.path}.tmp`
     await writeFile(temp, `${JSON.stringify(stored)}\n`)
     await rename(temp, this.path)
+    this.dirty = false
+    this.written = true
+    return true
   }
 }

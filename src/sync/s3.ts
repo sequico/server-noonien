@@ -5,6 +5,7 @@
 import {
   assertShardName,
   isSafeNodeId,
+  NO_SHARD,
   nodeOfShard,
   SHARD_EXTENSION,
   type ShardStat,
@@ -106,12 +107,17 @@ export class S3Backend implements SyncBackend {
     return object === undefined ? undefined : { token: object.version, size: object.size }
   }
 
-  async append(name: string, text: string): Promise<void> {
+  async append(name: string, text: string, expected?: string): Promise<void> {
     assertShardName(name)
     const operations = await this.operations()
     const key = this.prefix + name
     for (let attempt = 0; attempt < MAX_CONDITIONAL_ATTEMPTS; attempt += 1) {
       const current = await operations.getVersioned(key)
+      if (expected !== undefined && (current?.version ?? NO_SHARD) !== expected) {
+        // The object moved under the content this caller derived from, so appending
+        // would write a sequence another writer already spent.
+        throw shardChanged(name)
+      }
       const content = `${current?.content ?? ""}${text}`
       if (await operations.putConditional(key, content, current?.version)) {
         return

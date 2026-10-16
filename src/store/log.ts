@@ -19,10 +19,15 @@ import {
 import type { Metrics } from "../metrics.js"
 import {
   compactionContended,
+  NO_SHARD,
   ShardChangedError,
   type SyncBackend,
+  shardContended,
   shardName as shardFileName,
 } from "../sync/backend.js"
+
+/** How many times an append re-derives its sequence after losing the write race. */
+const MAX_APPEND_ATTEMPTS = 3
 
 /** The read/append surface the knowledge graph needs from storage. */
 export interface OperationLog {
@@ -451,7 +456,32 @@ export class ShardLog implements OperationLog {
     })
   }
 
+  /**
+   * Stamp the drafts with this node's sequence and append them to its shard.
+   *
+   * The append is guarded by the token the sequence was derived from, so a second
+   * writer on the same node id cannot spend a sequence this write already used: it
+   * loses the guard, both writers re-derive against the content that is there and
+   * both land, instead of writing two operations on one sequence that no peer would
+   * ever receive.
+   */
   async append(drafts: readonly OperationDraft[]): Promise<void> {
+    for (let attempt = 1; attempt <= MAX_APPEND_ATTEMPTS; attempt += 1) {
+      try {
+        await this.writeOnce(drafts)
+        return
+      } catch (error) {
+        if (!(error instanceof ShardChangedError)) {
+          throw error
+        }
+        if (attempt === MAX_APPEND_ATTEMPTS) {
+          throw shardContended(this.shardName)
+        }
+      }
+    }
+  }
+
+  private async writeOnce(drafts: readonly OperationDraft[]): Promise<void> {
     if (drafts.length === 0) {
       return
     }
@@ -463,6 +493,11 @@ export class ShardLog implements OperationLog {
     if (this.sequence === undefined || (await this.ownShardMoved())) {
       await this.recover()
     }
+    // The token the sequence above was read from. The append may only land while the
+    // shard still has it, which is also what tells us afterwards whether an external
+    // writer (a gossip recovery or a compaction) touched the shard in between: only a
+    // growth from the same token as the cached copy is ours to fold.
+    const before = await this.backend.stat(this.shardName)
     let seq = this.sequence ?? 0
     const ops: Operation[] = []
     for (const draft of drafts) {
@@ -470,11 +505,7 @@ export class ShardLog implements OperationLog {
       seq += 1
     }
     const text = `${ops.map(encodeOperation).join("\n")}\n`
-    // The stat taken just before the append is what tells us afterwards whether an
-    // external writer (a gossip recovery or a compaction) touched the shard in
-    // between: only a growth from the same token as the cached copy is ours to fold.
-    const before = await this.backend.stat(this.shardName)
-    await this.backend.append(this.shardName, text)
+    await this.backend.append(this.shardName, text, before?.token ?? NO_SHARD)
     // Only now is the sequence spent: a failed append leaves it unchanged, so a
     // retry reuses the same ids instead of leaving a gap.
     this.sequence = seq

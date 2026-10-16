@@ -5,7 +5,6 @@
 import { randomBytes } from "node:crypto"
 import type { Dirent } from "node:fs"
 import {
-  appendFile,
   type FileHandle,
   mkdir,
   open,
@@ -21,6 +20,7 @@ import { isNotFound } from "../errors.js"
 import {
   assertShardName,
   isSafeNodeId,
+  NO_SHARD,
   nodeOfShard,
   SHARD_EXTENSION,
   type ShardStat,
@@ -54,8 +54,9 @@ function delay(ms: number): Promise<void> {
  * A shard has one writer by design, but `append` and `replace` from different
  * processes must not interleave: both take an exclusive `<name>.lock` file, so a
  * compaction running while a server appends fails loudly (or waits) instead of
- * silently dropping the append. The lock is released on every path and an
- * abandoned one is stolen after {@link LOCK_STALE_MS}.
+ * silently dropping the append, and an append guarded by the token it was derived
+ * from fails loudly instead of repeating a spent sequence. The lock is released on
+ * every path and an abandoned one is stolen after {@link LOCK_STALE_MS}.
  */
 export class FileBackend implements SyncBackend {
   private readonly directory: string
@@ -104,10 +105,30 @@ export class FileBackend implements SyncBackend {
     }
   }
 
-  async append(name: string, text: string): Promise<void> {
+  async append(name: string, text: string, expected?: string): Promise<void> {
     assertShardName(name)
     await mkdir(this.directory, { recursive: true })
-    await withLock(this.directory, name, () => appendFile(join(this.directory, name), text))
+    await withLock(this.directory, name, async () => {
+      if (expected !== undefined && (await this.tokenOf(name)) !== expected) {
+        // The caller stamped its content from a shard that has since moved: writing
+        // now would spend a sequence another writer already spent.
+        throw shardChanged(name)
+      }
+      // Opened, written and synced rather than `appendFile`: the caller answers the
+      // agent once this returns, so the bytes must be on disk, not in the page cache.
+      const handle = await open(join(this.directory, name), "a")
+      try {
+        await handle.writeFile(text)
+        await handle.sync()
+      } finally {
+        await handle.close()
+      }
+    })
+  }
+
+  /** The change token of a shard, or {@link NO_SHARD} when it does not exist. */
+  private async tokenOf(name: string): Promise<string> {
+    return (await this.stat(name))?.token ?? NO_SHARD
   }
 
   /**
@@ -226,12 +247,14 @@ async function releaseLock(lockPath: string, token: string): Promise<void> {
 /**
  * Remove the lock when it is stale, re-checking its age immediately before the
  * unlink so a lock a live holder just refreshed is not stolen (a narrow race that
- * the mtime re-read makes much less likely).
+ * the mtime re-read makes much less likely). The age is compared by distance, so a
+ * lock stamped by a machine whose clock runs ahead — one a synced folder replicates —
+ * is stale here too, instead of being waited out until the write gives up.
  */
 async function stealStaleLock(lockPath: string): Promise<boolean> {
   try {
     const before = await stat(lockPath)
-    if (Date.now() - before.mtimeMs <= LOCK_STALE_MS) {
+    if (Math.abs(Date.now() - before.mtimeMs) <= LOCK_STALE_MS) {
       return false
     }
     const again = await stat(lockPath)
@@ -241,7 +264,8 @@ async function stealStaleLock(lockPath: string): Promise<boolean> {
     await unlink(lockPath)
     return true
   } catch {
-    // Missing already: retry the create.
-    return true
+    // Not stealable (missing already, or a lock this process may not remove):
+    // wait and retry the create, which the caller's deadline still bounds.
+    return false
   }
 }

@@ -53,6 +53,13 @@ export interface ShardStat {
 }
 
 /**
+ * The token standing for "this shard does not exist". A real token is a fingerprint
+ * (`mtime:ctime:inode`, a version counter, an ETag) and never contains a NUL, so it
+ * can never collide with one.
+ */
+export const NO_SHARD = "\u0000absent"
+
+/**
  * A sync backend is the transport for per-node shards. A shard has a single
  * writer by design: it is appended to, and rewritten only by compaction, which
  * is a compare-and-swap so a concurrent writer is detected instead of lost.
@@ -66,8 +73,18 @@ export interface SyncBackend {
   read(name: string): Promise<string | undefined>
   /** A change fingerprint for a shard, or `undefined` when it does not exist. */
   stat(name: string): Promise<ShardStat | undefined>
-  /** Append raw text to a shard, creating it when necessary. */
-  append(name: string, text: string): Promise<void>
+  /**
+   * Append raw text to a shard, creating it when necessary.
+   *
+   * `expected` is the token the caller derived what it appends from — the author's
+   * own sequence numbers, read from the shard. When given, the append happens only
+   * if the shard still has that token ({@link NO_SHARD} for "did not exist yet"), so
+   * a second writer cannot stamp a sequence another writer already spent; a lost race
+   * raises {@link shardChanged} and the caller re-derives. An append that carries no
+   * content-derived token (a replica absorbing a peer's operations) is order
+   * independent and needs no guard.
+   */
+  append(name: string, text: string, expected?: string): Promise<void>
   /**
    * Overwrite a shard with exactly `text`, but only when its current content is
    * still `expected` (`undefined` when the shard does not exist). This is the

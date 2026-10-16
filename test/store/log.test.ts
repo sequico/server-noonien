@@ -2,12 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it, vi } from "vitest"
 import { collectable } from "../../src/gossip/collection.js"
 import { decodeOperations, encodeOperation } from "../../src/graph/codec.js"
 import { foldOperations } from "../../src/graph/fold.js"
 import { Metrics } from "../../src/metrics.js"
 import { type CollectionGuard, ShardLog } from "../../src/store/log.js"
+import { FileBackend } from "../../src/sync/file.js"
 import { MemoryBackend } from "../../src/sync/memory.js"
 import { COLLECT_ALL } from "../support/gossip.js"
 import { op } from "../support/operations.js"
@@ -159,6 +163,35 @@ describe("ShardLog", () => {
       ])
     } finally {
       vi.useRealTimers()
+    }
+  })
+
+  it("gives two writers on one node id their own sequence", async () => {
+    // The real setup: two MCP servers sharing one directory with the same node id.
+    // Both derive the next sequence from the shard they read, so the append has to
+    // be refused for the writer that lost — otherwise both write sequence 0, and a
+    // peer already at that sequence never receives either operation.
+    const directory = await mkdtemp(join(tmpdir(), "noonien-two-writers-"))
+    try {
+      const first = new ShardLog(new FileBackend(directory), "n1")
+      const second = new ShardLog(new FileBackend(directory), "n1")
+      await first.read()
+      await second.read()
+      await Promise.all([
+        first.append([{ type: "entity.create", name: "from-first", entityType: "t" }]),
+        second.append([{ type: "entity.create", name: "from-second", entityType: "t" }]),
+      ])
+      const written = decodeOperations(
+        (await new FileBackend(directory).read("n1.jsonl")) ?? "",
+        "n1.jsonl",
+      )
+      expect(written.map((op) => op.seq).sort((a, b) => a - b)).toEqual([0, 1])
+      expect(written.map((op) => (op.type === "entity.create" ? op.name : "")).sort()).toEqual([
+        "from-first",
+        "from-second",
+      ])
+    } finally {
+      await rm(directory, { recursive: true, force: true })
     }
   })
 

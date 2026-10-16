@@ -2,7 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { assertShardName, type ShardStat, type SyncBackend, shardChanged } from "./backend.js"
+import {
+  assertShardName,
+  NO_SHARD,
+  type ShardStat,
+  type SyncBackend,
+  shardChanged,
+} from "./backend.js"
 
 /**
  * Shards held in process memory. Nothing persists across restarts: use it for
@@ -35,10 +41,17 @@ export class MemoryBackend implements SyncBackend {
     }
   }
 
-  async append(name: string, text: string): Promise<void> {
+  async append(name: string, text: string, expected?: string): Promise<void> {
     assertShardName(name)
+    if (expected !== undefined && (await this.tokenOf(name)) !== expected) {
+      throw shardChanged(name)
+    }
     this.shards.set(name, (this.shards.get(name) ?? "") + text)
     this.versions.set(name, (this.versions.get(name) ?? 0) + 1)
+  }
+
+  private async tokenOf(name: string): Promise<string> {
+    return (await this.stat(name))?.token ?? NO_SHARD
   }
 
   async replace(name: string, text: string, expected: string | undefined): Promise<void> {

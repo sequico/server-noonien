@@ -95,8 +95,14 @@ export class FileBackend implements SyncBackend {
       const info = await stat(join(this.directory, name))
       // mtime alone has millisecond resolution and `rename` can reuse it, so the
       // inode and the change time are part of the token: a rewrite is a new inode and
-      // a new ctime, even on mounts where the inode is `0`.
-      return { token: `${info.mtimeMs}:${info.ctimeMs}:${info.ino}`, size: info.size }
+      // a new ctime, even on mounts where the inode is `0`. The byte length is part of
+      // it too: on a mount whose timestamps are coarse (a network mount, an old
+      // filesystem) two writes in one tick share all three, and an append guarded by
+      // that token would be allowed to spend a sequence already spent.
+      return {
+        token: `${info.mtimeMs}:${info.ctimeMs}:${info.ino}:${info.size}`,
+        size: info.size,
+      }
     } catch (error) {
       if (isNotFound(error)) {
         return undefined

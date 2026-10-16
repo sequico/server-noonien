@@ -10,6 +10,7 @@ import {
   parseStaticPeers,
   parseTailscaleStatus,
 } from "../../src/gossip/bootstrap.js"
+import { MAX_PEERS } from "../../src/gossip/membership.js"
 
 describe("parseStaticPeers", () => {
   it("reads node-qualified and bare addresses", () => {
@@ -105,6 +106,21 @@ describe("Candidates", () => {
     candidates.adopted("a:1")
     expect(candidates.size).toBe(1)
     expect(candidates.due(0)).toEqual(["b:2"])
+  })
+
+  it("bounds the pending set, so an inbound flood cannot grow it for ever", () => {
+    // Discovery sources are the operator's own, but an inbound request can propose an
+    // address and nothing prunes what never answers.
+    const candidates = new Candidates(30_000, 300_000)
+    const flood = (first: number): void =>
+      candidates.add(
+        Array.from({ length: 1000 }, (_unused, index) => `host${first + index}:${first + index}`),
+      )
+    for (let round = 0; round <= MAX_PEERS / 1000; round += 1) {
+      flood(round * 1000)
+    }
+    expect(candidates.size).toBeLessThanOrEqual(MAX_PEERS)
+    expect(candidates.size).toBe(MAX_PEERS)
   })
 
   it("backs a failing candidate off exponentially up to the cap", () => {

@@ -160,6 +160,13 @@ async function handle(
  * A peer that reaches us is alive: mark it so, reviving it from the dead backoff
  * without waiting out its retry.
  *
+ * Only a **certificate** revives anyone. A header is a claim, and reviving on a
+ * claim would let any host that can open a socket keep a member alive forever: its
+ * failure count never reaches the dead threshold, so a peer that no longer exists
+ * stays *reachable* while no round can ever cover it — and that holds tombstone
+ * collection open mesh-wide. A peer that really is back is revived by the round that
+ * reaches it, which is the only evidence that counts.
+ *
  * A caller that is **not** a peer yet is never adopted from its headers: nothing it
  * sends becomes membership, and its id is never taken on trust. It is offered as a
  * discovery candidate instead, on the same terms as any other — the daemon probes it and
@@ -183,7 +190,9 @@ function reviveCaller(
   if (node === undefined) {
     return
   }
-  options.membership.touch(node, announced?.node === node ? announced.version : Number.NaN)
+  if (client !== undefined) {
+    options.membership.touch(client, announced?.node === client ? announced.version : Number.NaN)
+  }
   if (
     options.inboundCandidate !== undefined &&
     !options.membership.has(node) &&

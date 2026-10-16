@@ -6,6 +6,7 @@ import { execFile } from "node:child_process"
 import { resolveSrv } from "node:dns/promises"
 import { promisify } from "node:util"
 import { withPort } from "./address.js"
+import { MAX_PEERS } from "./membership.js"
 import type { Seed } from "./types.js"
 
 const execFileAsync = promisify(execFile)
@@ -66,6 +67,15 @@ interface ProbeBackoff {
  * due probe. Discoverability is preserved: the source is re-read on every refresh and
  * a candidate that starts answering joins at once.
  */
+/**
+ * Ceiling on the candidate set. Discovery sources are the operator's own, but an
+ * inbound request can propose an address, and nothing prunes what never answers: a
+ * host sending one request per port would otherwise grow the set — and the probes it
+ * is retried with — for as long as it keeps sending. The ceiling is the peer set's, so
+ * the two can never disagree about how much a node can hold.
+ */
+const MAX_CANDIDATES = MAX_PEERS
+
 export class Candidates {
   private readonly pending = new Set<string>()
   private readonly resolved = new Set<string>()
@@ -89,6 +99,14 @@ export class Candidates {
       // came up — or moved to another port — is adopted at once rather than in minutes.
       this.backoff.delete(address)
       this.pending.add(address)
+      // Full: drop the oldest entry (a Set keeps insertion order) to make room.
+      if (this.pending.size > MAX_CANDIDATES) {
+        const oldest = this.pending.values().next().value
+        if (oldest !== undefined) {
+          this.pending.delete(oldest)
+          this.backoff.delete(oldest)
+        }
+      }
     }
   }
 

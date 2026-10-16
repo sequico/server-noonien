@@ -155,21 +155,19 @@ export class Membership {
   }
 
   /**
-   * Remove a node entirely — entry, health, verified mark **and** its forgotten
-   * version. Used when the daemon retires a peer: its protection has been
-   * materialised (a retired threshold or a blanket) and must be read from there, not
-   * re-derived from an entry the gate would treat as an unknown peer, which would
-   * block every element instead of only the ones that peer could contest. A stale
-   * gossip may re-add the node afterwards; it is then a fresh candidate — if it
-   * answers it is accounted for again, if not it dies and is retired once more.
+   * Remove a node entirely: entry, health, verified mark and its forgotten version.
+   * Used when the daemon retires a peer: its protection has been materialised (a
+   * retired threshold or a blanket) and must be read from there, not re-derived from
+   * an entry the gate would treat as an unknown peer, which would block every element
+   * instead of only the ones that peer could contest. A stale gossip may re-add the
+   * node afterwards; it is then a fresh candidate — if it answers it is accounted for
+   * again, if not it dies and is retired once more.
    */
   discard(node: string): void {
     if (node === this.selfEntry.node) {
       return
     }
-    this.entries.delete(node)
-    this.health.delete(node)
-    this.verified.delete(node)
+    this.drop(node)
     this.forgotten.delete(node)
   }
 
@@ -208,9 +206,13 @@ export class Membership {
    * Every node id that could still hold operations this node has not seen: the known
    * peers plus the ones the membership TTL forgot. A forgotten node is out of the
    * peer set — it is not contacted and not gossiped — but it may be alive but off the
-   * mesh, writing: dropping a tombstone it could contest would let it resurrect when
-   * it reconnects. So collection must keep counting it until it is seen again or the
-   * operator explicitly departs it.
+   * mesh, writing, so it stays counted until it is seen again or the operator explicitly
+   * departs it.
+   *
+   * Counting it is what keeps a tombstone it could contest from being collected; the
+   * threshold itself lives in the durable peer knowledge, so bounding this map does not
+   * weaken that. A peer this node never exchanged with holds nothing, so it gates
+   * nothing whether it is listed here or not.
    */
   retainedNodes(): string[] {
     const nodes = new Set(this.entries.keys())
@@ -311,6 +313,14 @@ export class Membership {
       }
       this.health.delete(node)
       this.verified.delete(node)
+      // Full: drop the oldest forgotten version (Map keeps insertion order). Nothing
+      // is lost by it — a peer this node ever exchanged with is protected by its
+      // durable frontier, not by this map, and a peer it never exchanged with gates
+      // nothing — and without it every peer ever pruned would keep a metric series.
+      const oldest = this.forgotten.keys().next().value
+      if (this.forgotten.size > MAX_PEERS && oldest !== undefined) {
+        this.forgotten.delete(oldest)
+      }
       pruned += 1
     }
     return pruned

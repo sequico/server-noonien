@@ -105,7 +105,11 @@ describe("gossip HTTP service", () => {
     expect((await transport.opsAfter("ai", 0)).map((op) => op.seq)).toEqual([1])
   })
 
-  it("revives a dead peer that reaches the server", async () => {
+  it("does not revive a dead peer on a header alone", async () => {
+    // A header is a claim, not proof. Reviving on one let any host that could open a
+    // socket keep a member alive for good, and a peer that no longer answers then
+    // stays *reachable* while no round can cover it — which holds collection open
+    // mesh-wide. A peer that really is back is revived by the round that reaches it.
     const ai = await newNode("ai")
     ai.membership.merge([{ node: "z600", address: "z600:9999", version: 1 }])
     for (let attempt = 0; attempt < 6; attempt += 1) {
@@ -119,8 +123,7 @@ describe("gossip HTTP service", () => {
       version: 1,
     })
     await zToAi.info()
-    expect(ai.membership.healthOf("z600")).toBe("alive")
-    expect(ai.membership.contactable().map((entry) => entry.node)).toContain("z600")
+    expect(ai.membership.healthOf("z600")).toBe("dead")
   })
 
   it("offers an unknown announcer as a candidate built from where it came from", async () => {
@@ -144,8 +147,9 @@ describe("gossip HTTP service", () => {
     expect(ai.membership.contactable().map((entry) => entry.node)).toEqual([])
     expect(proposed).toEqual(["127.0.0.1:9999"])
 
-    // A caller that is already a peer proposes nothing: it is in the set, and the
-    // version it announces refreshes its entry.
+    // A caller that is already a peer proposes nothing: it is in the set. Without a
+    // certificate its headers refresh nothing either — a claim is not a peer's news —
+    // so the entry its own gossip or `/info` brought is what stands.
     ai.membership.merge([{ node: "Z600", address: "z600:9999", version: 1 }])
     proposed.length = 0
     const known = new HttpTransport(ai.address, undefined, 10_000, undefined, undefined, {
@@ -155,7 +159,7 @@ describe("gossip HTTP service", () => {
     })
     await known.info()
     expect(proposed).toEqual([])
-    expect(ai.membership.known().find((entry) => entry.node === "Z600")?.version).toBe(2)
+    expect(ai.membership.known().find((entry) => entry.node === "Z600")?.version).toBe(1)
   })
 
   it("does not adopt a peer announcing an unsafe node id", async () => {

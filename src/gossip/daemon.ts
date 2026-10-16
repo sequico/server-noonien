@@ -20,7 +20,7 @@ import {
   withoutForfeited,
 } from "./collection.js"
 import { type GossipConfig, loadGossipConfig } from "./config.js"
-import { syncMembership, syncWith } from "./exchange.js"
+import { type SyncResult, syncMembership, syncWith } from "./exchange.js"
 import { notifyHook } from "./hook.js"
 import { PeerKnowledge, peersPath } from "./knowledge.js"
 import { Membership } from "./membership.js"
@@ -34,10 +34,72 @@ import {
   HttpTransport,
   type PeerTransport,
 } from "./transport.js"
-import type { Seed, ShardSummary } from "./types.js"
+import type { PeerEntry, Seed, ShardSummary } from "./types.js"
 
 /** Peers contacted on the membership channel when the channels are split. */
 const MEMBERSHIP_CHANNEL_PEERS = 1
+
+/**
+ * Peers exchanged with at once. The default fanout contacts the whole mesh, so an
+ * unbounded `allSettled` would open one exchange — several requests each — per peer
+ * in a single burst; batching bounds the sockets and the memory a round holds while
+ * still visiting every sampled peer, exactly as the shard reconciliation bounds its own
+ * concurrency.
+ */
+const CONCURRENT_PEERS = 8
+
+/** Everything one round's data exchanges need. */
+interface RoundExchanges {
+  readonly sample: readonly PeerEntry[]
+  readonly transportFor: (address: string) => PeerTransport
+  readonly replica: ReplicaStore
+  readonly membership: Membership
+  readonly config: GossipConfig
+  readonly ignored: ReadonlySet<string>
+  readonly metrics: Metrics
+  readonly log: (message: string) => void
+}
+
+/**
+ * Exchange with every sampled peer, a bounded number at a time, accounting for each
+ * one. The results keep the sample's order — that is what the frontier recording
+ * matches them against.
+ */
+async function exchangeWithSample(
+  input: RoundExchanges,
+): Promise<PromiseSettledResult<SyncResult>[]> {
+  const { config, ignored, log, membership, metrics, replica, sample, transportFor } = input
+  const results: PromiseSettledResult<SyncResult>[] = []
+  for (let index = 0; index < sample.length; index += CONCURRENT_PEERS) {
+    const batch = sample.slice(index, index + CONCURRENT_PEERS)
+    results.push(
+      ...(await Promise.allSettled(
+        batch.map(async (peer) => {
+          const result = await syncWith(peer, transportFor(peer.address), replica, membership, {
+            membership: !config.channels,
+            digestMinShards: config.digestMinShards,
+            ignored,
+            onDigest: () =>
+              metrics.counter(
+                "noonien_gossip_digest_exchanges_total",
+                "Exchanges that used the shard digest",
+              ),
+          })
+          if (result.ok) {
+            metrics.counter("noonien_gossip_peers_ok_total", "Successful peer exchanges")
+            metrics.counter("noonien_gossip_ops_pulled_total", "Operations pulled", result.pulled)
+            metrics.counter("noonien_gossip_ops_pushed_total", "Operations pushed", result.pushed)
+          } else {
+            metrics.counter("noonien_gossip_peers_failed_total", "Failed peer exchanges")
+            log(`sync with ${peer.node} (${peer.address}) failed: ${result.error ?? "unknown"}`)
+          }
+          return result
+        }),
+      )),
+    )
+  }
+  return results
+}
 
 export interface GossipHandle {
   readonly url: string
@@ -256,29 +318,16 @@ export async function startGossip(
         }
       })
     }
-    const results = await Promise.allSettled(
-      sample.map(async (peer) => {
-        const result = await syncWith(peer, transportFor(peer.address), replica, membership, {
-          membership: !config.channels,
-          digestMinShards: config.digestMinShards,
-          ignored,
-          onDigest: () =>
-            metrics.counter(
-              "noonien_gossip_digest_exchanges_total",
-              "Exchanges that used the shard digest",
-            ),
-        })
-        if (result.ok) {
-          metrics.counter("noonien_gossip_peers_ok_total", "Successful peer exchanges")
-          metrics.counter("noonien_gossip_ops_pulled_total", "Operations pulled", result.pulled)
-          metrics.counter("noonien_gossip_ops_pushed_total", "Operations pushed", result.pushed)
-        } else {
-          metrics.counter("noonien_gossip_peers_failed_total", "Failed peer exchanges")
-          log(`sync with ${peer.node} (${peer.address}) failed: ${result.error ?? "unknown"}`)
-        }
-        return result
-      }),
-    )
+    const results = await exchangeWithSample({
+      sample,
+      transportFor,
+      replica,
+      membership,
+      config,
+      ignored,
+      metrics,
+      log,
+    })
     for (const address of [...transports.keys()]) {
       if (!membership.known().some((entry) => entry.address === address)) {
         transports.delete(address)

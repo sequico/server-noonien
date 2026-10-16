@@ -146,6 +146,29 @@ describe("Membership", () => {
     expect(set.retainedNodes()).toEqual(["peer"])
   })
 
+  it("bounds the forgotten versions, dropping the oldest", () => {
+    // Nothing is lost by bounding it: a peer this node exchanged with is protected by
+    // its durable frontier, not by this map. Without a bound every peer ever pruned
+    // would keep a metric series for good.
+    const set = membership()
+    const churn = (first: number): void => {
+      const entries = Array.from({ length: MAX_PEERS - 1 }, (_unused, index) => ({
+        node: `p${first + index}`,
+        address: `p${first + index}:1`,
+        version: 1,
+      }))
+      set.merge(entries)
+      const now = Date.now()
+      for (const entry of entries) {
+        kill(set, entry.node, now)
+      }
+      set.prune(now + MEMBERSHIP_TTL_MS + 1)
+    }
+    churn(0)
+    churn(MAX_PEERS)
+    expect(set.retainedNodes().length).toBe(MAX_PEERS)
+  })
+
   it("is not in the peer set once forgotten, so a returning one is proposed again", () => {
     const set = membership()
     expect(set.has("self")).toBe(true)

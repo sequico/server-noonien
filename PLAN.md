@@ -61,6 +61,9 @@ Properties required and tested:
   `append` and `replace` through a per-shard lock and `s3` through conditional writes, so the
   writers — the server, the online compaction, the `nooniend` daemon recovering the own shard —
   never race or drop a write; a compaction that loses the compare-and-swap re-reads and retries.
+  An append carries the state its sequence numbers were derived from, so a second writer on one
+  node id is refused and re-derives instead of spending a sequence already spent: the two writers
+  land on their own sequences rather than stranding each other's operations from every peer.
   `noonien import` authors its own `<node>-import` shard, so it runs online too — and it is pruned
   on each import and by `noonien compact`: it only ever adds, so pruning it needs no knowledge and
   can lose nothing.
@@ -198,7 +201,10 @@ on a specific provider.
   **retired frontier**, one elementwise maximum per author, which is exactly the union of the
   per-element decisions it and its fellow retirees would have made — over one map bounded by the
   shards this node holds, not one map per peer; an **unaccounted** peer leaves a durable
-  **blanket**, the same "it could hold anything" that gated it while it was live. Nothing is
+  **blanket**, the same "it could hold anything" that gated it while it was live. A peer record the
+  daemon cannot parse leaves a blanket too: the protection is unknown, and reading it as "this peer
+  holds nothing" would unblock instead of conservatively blocking — the durable record is also
+  synced before it is renamed and an unreadable one stops the daemon, empty included. Nothing is
   forfeited by retiring, so the window can be on by default and `NOONIEND_REVOKED`/`_DEPARTED` stay
   the only forfeiture (a maximum cannot be un-merged, so a node must be departed before its window
   expires). Two details make it sound: the *comparison* is kept rather than the elements it once

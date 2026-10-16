@@ -337,8 +337,10 @@ NOONIEN_BACKEND=s3 NOONIEN_S3_BUCKET=my-bucket NOONIEN_NODE_ID=ai server-noonien
 - **`s3`** — one object per shard, written with conditional writes retried on contention; uses
   `@aws-sdk/client-s3` (an optional dependency, loaded only when selected). Conditional writes need
   a store that honours `If-Match`/`If-None-Match` on `PutObject` (AWS S3, Cloudflare R2, MinIO do);
-  a store that ignores them is not supported, and a shard object with a multipart ETag is refused
-  rather than guarded by a token that can never match. An object store has no append, so **every
+  a store that ignores them is not supported, and a conditional *write* carrying an ETag the store
+  cannot use — none, or a multipart one — is refused rather than guarded by a token that can never
+  match. Reading is not conditional: a shard object with a multipart ETag reads and stats normally.
+  An object store has no append, so **every
   mutation rewrites the whole shard object** (read-modify-write): correct, but O(shard size) per
   write.
 
@@ -377,11 +379,12 @@ alternative transport for `file`/`s3`.
 
 A node id is a **single-writer shard**: exactly one server process should append to it at a time.
 The normal setup is one memory server per machine; if you run several servers against the same store
-concurrently, give each its own `NOONIEN_NODE_ID`. The tool does not enforce this: two writers that
-share a node id and write in the same millisecond produce operations with the same id, which a read
-**fails loudly** on — but writers on different clocks usually land on different ids, so the shard
-can quietly interleave and the fold picks one. A unique node id is a requirement, not something the
-tool can check.
+concurrently, give each its own `NOONIEN_NODE_ID`. The tool does not enforce this, and it does not
+have to be silent about it: an append carries the shard state the writer derived its sequence
+numbers from, so a second writer is refused and re-derives instead of spending a sequence already
+spent — both operations land, on their own sequences, and every peer receives both. Two writers that
+land on the same millisecond still produce operations with the same id, which a read **fails
+loudly** on. A unique node id is still a requirement, not something the tool can check.
 
 ### Server variables
 
@@ -416,7 +419,10 @@ the `NOONIEN_GC` promise: `noonien import` prunes it on the way out, and `noonie
 it too — dropping the operations a later one shadowed, keeping every tombstone, and rewriting only
 when something was dropped, so a repeated maintenance costs nothing and no peer is asked to re-pull
 the shard. On the `file` backend, `append` and `compact` take a per-shard lock, so they serialize
-instead of racing even across processes — and the daemon takes the same lock.
+instead of racing even across processes — and the daemon takes the same lock. An append is synced
+before it is acknowledged, so a write the server has confirmed is on disk; a lock nobody refreshes
+is stolen, by its age in either direction, because a folder a syncer replicates can carry one
+stamped by a machine whose clock runs ahead.
 
 Within a node the timestamp is **monotonic**: if the wall clock steps back (NTP, a restored
 snapshot, a manual `date`), a new operation keeps the previous timestamp rather than an older one,
@@ -431,7 +437,7 @@ VPN or firewall and enable mTLS — see [Security](#security).
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `NOONIEND_LISTEN` | `0.0.0.0:27878` | `host:port` the gossip service binds. |
-| `NOONIEND_ADVERTISE` | the listen host (hostname on a wildcard) | **Optional.** `host:port` this node advertises to peers; set it only when the default does not resolve from the others. |
+| `NOONIEND_ADVERTISE` | the listen host (hostname on a wildcard) | **Optional.** `host:port` this node advertises to peers; set it only when the default does not resolve from the others. A value that is not a `host:port` is refused at startup, because every peer validates the gossiped entry and a typo would otherwise make this node a member nowhere. |
 | `NOONIEND_PEERS` | — | **Discovery: static seeds** — `node@host:port` or `host:port`, comma separated. One is enough; membership then self-propagates. |
 | `NOONIEND_DNS_SRV` | — | **Discovery:** domain whose `_nooniend._tcp` SRV records are seeds. |
 | `NOONIEND_TAILSCALE` | off | **Discovery:** derive candidate addresses from `tailscale status` (a peer joins once it answers `/info`). |
@@ -585,7 +591,11 @@ the only forfeiture — and since a maximum cannot be un-merged, a node must be 
 its window expires for its contribution to be lifted. A frontier that claims an author this node
 cannot serve is never recorded: a peer cannot freeze the mesh with a claim it cannot back. A claimed
 node that was never reached has nothing to materialise and gates nothing while it stays silent; its
-own frontier gates it from the first exchange.
+own frontier gates it from the first exchange. The retired record is durable, so the daemon syncs it
+before renaming it into place and refuses to start on a file it cannot read — an empty one included,
+which only a crash that lost the write can leave. A **peer record it cannot parse** is one whose
+protection is unknown, so it is not read as "this peer holds nothing": that node keeps a blanket,
+and `noonien_gossip_blankets` counts it until an operator resolves the file.
 
 **Without the daemon** a physical deletion needs an explicit promise. A daemon that owns the
 directory (`.nooniend-peers.json` present) holds the peer knowledge and collects, and it is the
@@ -717,7 +727,11 @@ without those arguments the answer is byte-for-byte the one they gave before.
   certificate that mTLS supplies — without it a peer has no identity to refuse. Setting
   `NOONIEND_TLS_REQUIRE_CLIENT=false` turns TLS back into an unauthenticated channel (any client
   can push any shard); the daemon logs a warning at startup in that mode.
-- **Trust model.** mTLS authenticates **members**, not individual operations. A node serves every
+- **Trust model.** mTLS authenticates **members**, not individual operations. Only a **certificate**
+  marks a caller as alive: a header claiming a node id does nothing to that node's health, because a
+  host that can open a socket could otherwise keep a peer that no longer answers alive for good —
+  and a peer that is reachable and never covered suspends collection mesh-wide. Without mTLS a peer
+  that comes back is revived by the round that reaches it. A node serves every
   shard it holds, so relaying is trusted: a member can carry another node's shard to a third node,
   and the daemon recovers its own lost shard from a peer's replica. Run `nooniend` only on machines
   you trust as peers. The fold's last-writer-wins order trusts the operation's HLC stamp, so a
@@ -741,7 +755,8 @@ npm run check       # Biome: lint + format + import order
 npm run typecheck   # tsc --noEmit
 npm run test        # Vitest, including the CRDT property tests
 npm run build       # tsc -> dist/
-npm run gate        # all of the above
+npm run audit       # npm audit --audit-level=high
+npm run gate        # all of the above, the audit first
 
 npm run release:check   # version artifacts agree, every bin is packed, the changelog matches
 npm run mcpb            # build server-noonien-<version>.mcpb (Claude Desktop / Smithery Local)

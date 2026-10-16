@@ -9,6 +9,32 @@ version and its date.
 
 ## Unreleased
 
+- **Two servers on one node id no longer strand each other's writes.** An append now carries the
+  shard state its sequence numbers were derived from, so the writer that loses the race is refused
+  and re-derives: both operations land on their own sequences and every peer receives both, instead
+  of two operations sharing a sequence that no peer at that sequence ever sees.
+- **Only a certificate marks a peer alive.** Reviving health on an announced header let any host
+  that could open a socket keep a member that no longer answers "reachable", which suspended
+  tombstone collection across the mesh; the round that reaches the peer is what revives it now.
+- A lock nobody refreshes is stolen by its age in **either** direction, so a lock replicated from a
+  machine whose clock runs ahead no longer stalls every write for the full deadline — and a steal
+  that failed no longer spins the retry loop without pausing. An append is synced before it is
+  acknowledged, so a write the server confirmed is on disk.
+- A durable peer record the daemon cannot parse leaves a **blanket** instead of reading as "this
+  peer holds nothing"; the record is synced before the rename and an empty one stops the daemon,
+  because the only way it appears is a crash that lost the write.
+- On S3, a shard object with a multipart ETag reads and stats normally — only a conditional *write*
+  refuses a token the store cannot use, instead of one such object failing every tool call.
+- Bound what an unauthenticated request can grow: the discovery candidate set and the forgotten
+  versions carry the peer set's ceiling, and a round exchanges with a bounded number of peers at
+  once instead of opening one exchange per peer in a single burst.
+- Cap the daemon's decode cache at the store's own shard ceiling, so above 256 shards a read no
+  longer re-decodes the mesh; report an import's skipped lines once per kind instead of once per
+  line, which a pretty-printed `memory.json` turned into a hundred thousand blocking writes.
+- Refuse a `NOONIEND_ADVERTISE` value that is not a `host:port` at startup, instead of letting every
+  peer drop the entry and leaving the node a member nowhere.
+- `npm run gate` (and CI) now runs `npm audit --audit-level=high`, and the release workflow pins
+  `mcp-publisher` by version and digest instead of downloading `latest` next to an OIDC token.
 - **Security.** A caller that is not a member yet is no longer adopted from the headers of its
   request: nothing it sends becomes membership and its id is never taken on trust. It is offered as a
   discovery candidate instead — the host the request came from, the port it announces — and joins

@@ -18,12 +18,14 @@ contributing you agree that your contributions are licensed under the [Mozilla P
 
 ```sh
 npm install
-npm run gate       # check + typecheck + test + build
+npm run gate       # audit + check + typecheck + test + build
 ```
 
 `npm run gate` must pass with **zero errors, zero warnings and zero residual issues** before a
-change is done. The four commands are `npm run check` (Biome), `npm run typecheck` (tsc), `npm run
-test` (Vitest) and `npm run build` (tsc → `dist/`).
+change is done. The five commands are `npm run audit` (`npm audit --audit-level=high`), `npm run
+check` (Biome), `npm run typecheck` (tsc), `npm run test` (Vitest) and `npm run build` (tsc →
+`dist/`). The same audit and the same commands run in CI, so a dependency advisory fails there even
+if it was not run by hand.
 
 ## Making a change
 

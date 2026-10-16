@@ -20,7 +20,9 @@ per-round metadata O(k) rather than O(N).
 | 10,000 | k | not viable | not viable |
 
 The bottlenecks at these sizes are (a) **full replication**: every node holds every shard, so
-storage and RAM are O(N·ops) per node; (b) a read/refresh that is O(all ops); (c) tombstone
+storage and RAM are O(N·ops) per node — and the daemon's decode cache is capped at the store's own
+shard ceiling, so above ~10 000 shards a read re-decodes the shards it evicted instead of holding
+the whole mesh; (b) a read/refresh that is O(all ops); (c) tombstone
 collection that needs an element's full replica set to be known, so it holds inside an island but
 not across a federation. Authorization is CN-only.
 

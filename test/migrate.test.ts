@@ -39,11 +39,19 @@ describe("parseOfficialMemory", () => {
     })
   })
 
-  it("reports a record with an unknown type", () => {
+  it("reports each kind of skip once, with how many lines it covered", () => {
     const spy = vi.spyOn(process.stderr, "write").mockReturnValue(true)
     try {
-      expect(parseOfficialMemory('{"type":"unknown"}')).toEqual({ entities: [], relations: [] })
-      expect(spy).toHaveBeenCalledWith(expect.stringContaining("unknown type"))
+      expect(parseOfficialMemory('{"type":"unknown"}\n{"type":"unknown"}\nnot json')).toEqual({
+        entities: [],
+        relations: [],
+      })
+      const reported = spy.mock.calls.map((call) => String(call[0]))
+      // One report per kind, not one per line: a pretty-printed import file skips
+      // every line, and a write each would be a hundred thousand of them.
+      expect(reported).toHaveLength(2)
+      expect(reported.join("")).toContain('skipping 2 line(s) with unknown type "unknown"')
+      expect(reported.join("")).toContain("skipping 1 malformed line(s)")
     } finally {
       spy.mockRestore()
     }

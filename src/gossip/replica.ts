@@ -37,9 +37,6 @@ function shardFile(directory: string, node: string): string {
   return join(directory, shardName(node))
 }
 
-/** Bound on the decoded shards kept in memory; past it the oldest entry is evicted. */
-const MAX_CACHED_SHARDS = 256
-
 /** Fail when an operation does not belong to the shard it is being written to. */
 function assertBelongsTo(node: string, ops: readonly Operation[]): void {
   for (const op of ops) {
@@ -53,7 +50,10 @@ function assertBelongsTo(node: string, ops: readonly Operation[]): void {
  * Ceiling on the shards this store holds. It is the same ceiling a peer may
  * advertise in one list, so what a peer can offer and what the store can accept
  * agree — and it is what keeps a peer from naming ten thousand node ids and
- * filling the directory with one file each.
+ * filling the directory with one file each. It is also the decode cache's cap: a
+ * cache below it would not save memory above it, it would re-decode every shard on
+ * every read — the same cost the model already accepts for holding the mesh (see
+ * `SCALING.md`).
  */
 const MAX_HELD_SHARDS = MAX_LIST_ENTRIES
 
@@ -333,7 +333,7 @@ export class ReplicaStore {
     // Re-insert so the entry becomes the most recently used (Map keeps insertion order).
     this.cache.delete(path)
     this.cache.set(path, index)
-    while (this.cache.size > MAX_CACHED_SHARDS) {
+    while (this.cache.size > MAX_HELD_SHARDS) {
       const oldest = this.cache.keys().next().value
       if (oldest === undefined) {
         break

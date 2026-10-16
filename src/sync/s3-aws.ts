@@ -11,11 +11,15 @@ import {
 } from "@aws-sdk/client-s3"
 import type { AwsS3Config, S3Operations } from "./s3.js"
 
-function isS3NotFound(error: unknown): boolean {
+/**
+ * True when a lookup failed because the object is not there — never because the
+ * store is broken. A bare 404 can also be `NoSuchBucket` (a misconfigured store),
+ * which must not be mistaken for an absent shard: an append under `IfNoneMatch: "*"`
+ * would otherwise restart every shard from zero.
+ */
+export function isS3NotFound(error: unknown): boolean {
   const name = (error as { name?: unknown }).name
   const status = (error as { $metadata?: { httpStatusCode?: unknown } }).$metadata?.httpStatusCode
-  // A missing object is `NoSuchKey`/`NotFound`. A bare 404 can also be `NoSuchBucket`
-  // (a misconfigured store), which must not be mistaken for an absent shard.
   return name === "NoSuchKey" || name === "NotFound" || (status === 404 && name !== "NoSuchBucket")
 }
 
@@ -26,12 +30,12 @@ function isPreconditionFailed(error: unknown): boolean {
 }
 
 /**
- * Conditional writes need a version token. S3 always returns a single-part ETag
- * on a successful GET/HEAD; a missing one means the object changed under us, and a
- * multipart ETag (`"<md5>-<n>"`) is not a valid `If-Match` token, so both fail
- * loudly rather than guarding a write with a token that can never match.
+ * The version token a conditional write must present. S3 always returns a
+ * single-part ETag on a successful GET/HEAD; a missing one means the object changed
+ * under us, and a multipart ETag (`"<md5>-<n>"`) is not a valid `If-Match` token, so
+ * both fail loudly rather than guarding a write with a token that can never match.
  */
-function requireEtag(key: string, etag: string | undefined): string {
+export function requireEtag(key: string, etag: string | undefined): string {
   if (etag === undefined) {
     throw new Error(`object ${key} has no ETag; conditional writes need a version token`)
   }
@@ -90,7 +94,11 @@ export function createAwsS3Operations(config: AwsS3Config): S3Operations {
     async head(key: string) {
       try {
         const object = await client.send(new HeadObjectCommand({ Bucket: config.bucket, Key: key }))
-        return { version: requireEtag(key, object.ETag), size: object.ContentLength ?? 0 }
+        // The raw token, whatever it is: a stamp is a *read* fact, and refusing to
+        // answer it over a multipart ETag would fail every read of the shard — the
+        // store itself rejects a conditional write carrying such a token, which is
+        // where the refusal belongs.
+        return { version: object.ETag ?? "", size: object.ContentLength ?? 0 }
       } catch (error) {
         if (isS3NotFound(error)) {
           return undefined

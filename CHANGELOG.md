@@ -14,6 +14,9 @@ version and its date.
   discovery candidate instead — the host the request came from, the port it announces — and joins
   only after answering `/info`, so a statically-seeded joiner is still discovered by its seed while an
   address announced for another host is never even probed.
+- Record what an **inbound push** carries as the pusher's own knowledge: it authored those
+  operations, so it holds them, and the elements it delivered stay frozen even if it never answers
+  again — instead of reading as uncontested once it is gone.
 - Collection is no longer frozen for ever by a member this node never exchanged with: such a peer cannot
   hold a *causally aware* competitor — that requires the tombstone, and an operation of this node
   leaves here only through a push, which is recorded with the receiver's post-push high-water mark —

@@ -550,8 +550,11 @@ the only thing a retained tombstone has to beat, means having folded the element
 tombstone. An operation of this node leaves here only through a push, and a push is recorded with
 the receiver's **post-push** high-water mark, so a tombstone that is collectable is held by nobody
 at all; the other authors' work such a peer may hold is reported by the peer that relayed it, and a
-mark this node lacks blocks on its own. A peer that reaches this node with a push stays reachable,
-so the round suspends until an exchange has recorded its frontier. The peers tolerated this way are
+mark this node lacks blocks on its own. An **inbound** push is recorded the same way, at once: the
+pusher authored what it pushed, so it holds it — which keeps the elements it delivered frozen even
+if it never answers again, and puts a pusher from outside the membership under the gate. A peer
+that reaches this node with a push also stays reachable, so the round suspends until an exchange has
+recorded the rest of its frontier. The peers tolerated this way are
 published as `noonien_gossip_unreached_peers`.
 
 Each peer's knowledge frontier — the greatest sequence it has been seen to hold of every author's

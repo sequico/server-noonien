@@ -15,6 +15,7 @@ import type { Metrics } from "../metrics.js"
 import { isSafeNodeId } from "../sync/backend.js"
 import { addressHost, formatHostPort } from "./address.js"
 import { bucketEntries, computeDigest, DIGEST_BUCKETS } from "./digest.js"
+import type { PeerKnowledge } from "./knowledge.js"
 import type { Membership } from "./membership.js"
 import { DIGEST_CAPABILITY, MAX_WIRE_BYTES, PROTOCOL_VERSION } from "./protocol.js"
 import type { ReplicaStore } from "./replica.js"
@@ -65,6 +66,15 @@ export interface GossipServerOptions {
   readonly metrics?: Metrics
   /** Per-shard stable high-water marks, served at `/watermark` when present. */
   readonly watermark?: () => Record<string, number>
+  /**
+   * The durable peer knowledge, written by an inbound **push**: a peer that pushes
+   * operations to this node holds them by construction, so what it pushed is recorded as
+   * the part of a frontier an exchange would otherwise have to learn. Without it a peer
+   * that pushes and then dies looks like one never exchanged with — an element it
+   * delivered would read as uncontested, and a pusher outside the membership would gate
+   * nothing at all.
+   */
+  readonly knowledge?: PeerKnowledge
   /** Node ids refused outright — a revoked peer is rejected on every route. */
   readonly revoked?: ReadonlySet<string>
   /** Maximum accepted size of a pushed body; defaults to the wire cap. */
@@ -413,7 +423,12 @@ async function handleOps(
       return true
     }
     const appended = await options.replica.receive(name, ops)
-    send(response, 200, { appended, maxSeq: await options.replica.maxSeq(name) })
+    const maxSeq = await options.replica.maxSeq(name)
+    // The pusher authored what it pushed, so it holds those operations: recording that is
+    // what keeps the elements it delivered frozen even if it never exchanges again (see
+    // `GossipServerOptions.knowledge`).
+    options.knowledge?.record(name, new Map([[name, maxSeq]]), Date.now())
+    send(response, 200, { appended, maxSeq })
     return true
   }
   send(response, 405, { error: "method not allowed" })

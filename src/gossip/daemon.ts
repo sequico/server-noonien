@@ -196,6 +196,7 @@ export async function startGossip(
     membership,
     metrics,
     watermark: () => Object.fromEntries(stable),
+    knowledge,
     revoked: ignored,
     // A caller that is not a member yet is probed on `/info` before it joins, on the
     // same terms as a discovery candidate: its id comes from its own answer, and a host

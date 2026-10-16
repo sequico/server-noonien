@@ -8,6 +8,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { bucketOf, DIGEST_BUCKETS } from "../../src/gossip/digest.js"
 import { syncWith } from "../../src/gossip/exchange.js"
+import { PeerKnowledge } from "../../src/gossip/knowledge.js"
 import type { Membership } from "../../src/gossip/membership.js"
 import { DIGEST_CAPABILITY, PROTOCOL_VERSION } from "../../src/gossip/protocol.js"
 import { ReplicaStore } from "../../src/gossip/replica.js"
@@ -250,6 +251,25 @@ describe("gossip HTTP service", () => {
     const received = await transport.opsAfter("z600", -1)
     const names = received.flatMap((op) => (op.type === "entity.create" ? [op.name] : []))
     expect(names).toEqual(["Ada"])
+  })
+
+  it("records what an inbound pusher holds", async () => {
+    // The gap this closes: the pusher authored what it pushed, so it holds those
+    // operations even if it never answers again. Recorded here, the elements it delivered
+    // stay frozen; without the record they read as uncontested the moment the pusher is
+    // gone, and a pusher outside the membership would gate nothing at all.
+    const directory = await mkdtemp(join(tmpdir(), "noonien-knowledge-"))
+    directories.push(directory)
+    const knowledge = await PeerKnowledge.load(join(directory, ".nooniend-peers.json"))
+    const node = await newNode("ai", { knowledge })
+    const source = await mkdtemp(join(tmpdir(), "noonien-src-"))
+    directories.push(source)
+    await new ShardLog(new FileBackend(source), "z600").append(A_DRAFTS.slice(0, 1))
+    const ops = await new ShardLog(new FileBackend(source), "z600").read()
+    expect(knowledge.frontier("z600")).toBeUndefined()
+
+    await new HttpTransport(node.address, undefined).pushOps("z600", ops)
+    expect(knowledge.frontier("z600")).toEqual(new Map([["z600", 0]]))
   })
 
   it("converges two nodes over real HTTP", async () => {

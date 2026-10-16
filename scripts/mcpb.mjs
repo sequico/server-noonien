@@ -56,7 +56,10 @@ try {
       fail(`the staged bundle is missing ${required}`)
     }
   }
-  run("npx", ["-y", "@anthropic-ai/mcpb", "pack", bundle, output], root)
+  // Pinned: `npx` with no version installs and runs whatever the registry serves at
+  // the moment, and a bundle is built by hand, so the tool that builds it must be the
+  // one that was reviewed.
+  run("npx", ["-y", "@anthropic-ai/mcpb@2.1.2", "pack", bundle, output], root)
   if (!existsSync(output)) {
     fail("the packer reported success but wrote no bundle")
   }

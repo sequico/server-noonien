@@ -14,10 +14,11 @@ version and its date.
   discovery candidate instead — the host the request came from, the port it announces — and joins
   only after answering `/info`, so a statically-seeded joiner is still discovered by its seed while an
   address announced for another host is never even probed.
-- Collection is no longer frozen for ever by a member this node never exchanged with: such a peer holds
-  nothing this node pushed, and every operation it could answer causally is authored by a node that
-  gates for itself, so it no longer counts as "could hold anything" and blocks every deletion on the
-  mesh. The peers tolerated this way are published as `noonien_gossip_unreached_peers`.
+- Collection is no longer frozen for ever by a member this node never exchanged with: such a peer cannot
+  hold a *causally aware* competitor — that requires the tombstone, and an operation of this node
+  leaves here only through a push, which is recorded with the receiver's post-push high-water mark —
+  so it no longer counts as "could hold anything" and blocks every deletion on the mesh. The peers
+  tolerated this way are published as `noonien_gossip_unreached_peers`.
 - Bound the shards a node takes on: the store refuses a new one past the same ceiling a peer may
   advertise (answering `507`), so neither a pushed node id nor an advertised one can fill the
   directory.

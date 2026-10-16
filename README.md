@@ -545,12 +545,14 @@ and no retained peer may hold anything this node lacks. That is why `NOONIEND_FA
 unverifiable — holding operations this node cannot read — blocks collection until the operator
 departs it (`NOONIEND_REVOKED` / `NOONIEND_DEPARTED`); the retention window bounds *metadata* and
 forfeits no data, but it does not remove that decision. A peer this node has **never exchanged
-with**, on the other hand, gates nothing: it holds nothing this node pushed, and any operation it
-can answer causally is authored by a node that gates for itself, since operations reach it through
-the mesh and the peer that relayed one reports that author's high-water mark — a mark this node
-lacks blocks on its own. What that rule cannot see is an operation delivered and answered entirely
-among peers this node never exchanges with; the peers it tolerates this way are published as
-`noonien_gossip_unreached_peers`.
+with**, on the other hand, gates nothing — and not out of leniency: a *causally aware* competitor,
+the only thing a retained tombstone has to beat, means having folded the element, hence holding the
+tombstone. An operation of this node leaves here only through a push, and a push is recorded with
+the receiver's **post-push** high-water mark, so a tombstone that is collectable is held by nobody
+at all; the other authors' work such a peer may hold is reported by the peer that relayed it, and a
+mark this node lacks blocks on its own. A peer that reaches this node with a push stays reachable,
+so the round suspends until an exchange has recorded its frontier. The peers tolerated this way are
+published as `noonien_gossip_unreached_peers`.
 
 Each peer's knowledge frontier — the greatest sequence it has been seen to hold of every author's
 shard — is **durable**, persisted beside the shards in `.nooniend-peers.json`, so a machine gone

@@ -96,15 +96,17 @@ export function retainedPeers(
  * peer that folded nothing on an element can only mint a coincident one, which the
  * fold decides as a concurrent genesis rather than a revival.
  *
- * A pending peer this node has **never exchanged with** contributes nothing. It
- * holds nothing this node pushed — a push is an exchange, and every exchange is
- * recorded — and any operation it can answer causally is authored by a node that
- * gates for itself: operations reach it through the mesh, so the peer that relayed
- * one reports its author's high-water mark, and a mark this node lacks blocks on its
- * own ({@link exceedsLocal}). What the rule cannot see is an operation delivered and
- * answered entirely among peers this node never exchanges with — the price of a gate
- * that must not freeze for ever on a member which never says a word, counted as
- * `noonien_gossip_unreached_peers`.
+ * A pending peer this node has **never exchanged with** contributes nothing, and the
+ * reason is not leniency: a *causally aware* competitor — the only thing a retained
+ * tombstone has to beat — means having folded the element, hence holding the
+ * tombstone. An operation of this node leaves here only through a push, and a push is
+ * an exchange recorded with the receiver's **post-push** high-water mark
+ * (`peerKnowledge` in `exchange.ts`), so a tombstone that is collectable is held by
+ * nobody at all. What such a peer may still hold is other authors' work, and those
+ * authors gate for themselves: the peer that relayed an operation reports its author's
+ * mark, and a mark this node lacks blocks on its own ({@link exceedsLocal}). A peer
+ * that *reaches* this node with a push stays reachable meanwhile, which suspends the
+ * round until an exchange records its frontier.
  */
 export function meshState(input: OffMesh): Collection {
   const peers: (Frontier | undefined)[] = []

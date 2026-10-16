@@ -22,7 +22,10 @@ export interface OffMesh {
   readonly pending: readonly string[]
   /** True for a pending peer the node can still reach (its health is not dead). */
   readonly reachable: (node: string) => boolean
-  /** The greatest frontier a peer has been seen to hold, or `undefined` when never reached. */
+  /**
+   * The greatest frontier a peer has been seen to hold, or `undefined` when never reached.
+   * A never-reached peer gates nothing — {@link meshState} says why.
+   */
   readonly frontier: (node: string) => Frontier | undefined
   /**
    * The **retired frontier**: the elementwise maximum per author of the frontiers of
@@ -53,14 +56,14 @@ export interface OffMesh {
  * **suspended** collection drops no tombstone at all (a reachable peer was not
  * exchanged with, so unseen writes may still be in flight), while `peers` are the
  * gating frontiers — the peers off the mesh, the retired frontier, and `undefined`
- * for anything that could hold a relayed operation nobody can identify: a peer never
- * reached, or a durable blanket. `local` is what this node itself holds, so a peer
- * that holds anything the node lacks is never treated as harmless.
+ * for the durable **blanket**, the one statement left that "could hold anything"
+ * nobody can identify. `local` is what this node itself holds, so a peer that holds
+ * anything the node lacks is never treated as harmless.
  */
 export interface Collection {
   /** True when a reachable peer is behind, so nothing may be collected. */
   readonly suspended: boolean
-  /** The gating frontiers; `undefined` means "could hold anything". */
+  /** The gating frontiers; `undefined` is a durable blanket, which covers every element. */
   readonly peers: readonly (Frontier | undefined)[]
   /** The local node's own per-author high-water marks. */
   readonly local: Frontier
@@ -92,6 +95,16 @@ export function retainedPeers(
  * could have authored while away are those on the elements it already folded; a
  * peer that folded nothing on an element can only mint a coincident one, which the
  * fold decides as a concurrent genesis rather than a revival.
+ *
+ * A pending peer this node has **never exchanged with** contributes nothing. It
+ * holds nothing this node pushed — a push is an exchange, and every exchange is
+ * recorded — and any operation it can answer causally is authored by a node that
+ * gates for itself: operations reach it through the mesh, so the peer that relayed
+ * one reports its author's high-water mark, and a mark this node lacks blocks on its
+ * own ({@link exceedsLocal}). What the rule cannot see is an operation delivered and
+ * answered entirely among peers this node never exchanges with — the price of a gate
+ * that must not freeze for ever on a member which never says a word, counted as
+ * `noonien_gossip_unreached_peers`.
  */
 export function meshState(input: OffMesh): Collection {
   const peers: (Frontier | undefined)[] = []
@@ -99,7 +112,11 @@ export function meshState(input: OffMesh): Collection {
     if (input.reachable(node)) {
       return { suspended: true, peers: [], local: input.local }
     }
-    peers.push(input.frontier(node))
+    const frontier = input.frontier(node)
+    if (frontier === undefined) {
+      continue
+    }
+    peers.push(frontier)
   }
   // The retired frontier gates exactly like a peer off the mesh; a durable blanket is
   // the statement that something could hold anything, which the gate already reads as
@@ -172,9 +189,10 @@ function coversElement(frontier: Frontier, ops: readonly Operation[]): boolean {
  * that covers no operation of the element means the peer never *folded* it — so it
  * cannot have authored a competing tombstone on it, and an add it authors is a
  * concurrent genesis the fold decides, not a causally aware competitor (Invariant
- * 4.1). A peer never reached (`undefined` frontier) could hold anything, so it blocks
- * every element. A **retired** frontier takes part in exactly this rule, which is what
- * makes expiry invisible to the outcome: what changes is only where the thresholds live.
+ * 4.1). A **retired** frontier takes part in exactly this rule, which is what makes
+ * expiry invisible to the outcome: what changes is only where the thresholds live.
+ * `undefined` is the durable **blanket**: a peer retired without a frontier that could
+ * be verified, so it could hold anything and covers every element.
  */
 export function collectable(collection: Collection, ops: readonly Operation[]): boolean {
   if (collection.suspended) {

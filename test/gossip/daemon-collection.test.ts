@@ -260,6 +260,48 @@ describe("daemon collection", () => {
     expect(metrics).not.toContain('noonien_gossip_absent_seconds{node="ra"}')
   })
 
+  it("collects while a peer it never exchanged with stays dead", async () => {
+    const directoryB = await tempDirectory()
+    const portB = await freePort()
+    // The peer this closes: a member seeded and then gone, which held no frontier of ours.
+    // The gate used to read that as "could hold anything" and freeze every tombstone for
+    // ever, so one silent address was enough to stop collection on the whole mesh.
+    const b = await startDaemon("ub", directoryB, portB, `ua@127.0.0.1:${await freePort()}`)
+
+    await new ShardLog(new FileBackend(directoryB), "ub").append([
+      { type: "entity.create", name: "E", entityType: "t" },
+    ])
+    await new ShardLog(new FileBackend(directoryB), "ub").append([
+      { type: "entity.delete", name: "E" },
+    ])
+    // Rounds until the peer is dead, so its silence is what the gate is judged on.
+    await until(async () => {
+      await b.syncOnce()
+      const peers = (await fetch(`${b.url}/peers`).then((response) => response.json())) as {
+        peers: Array<{ node: string; health: string }>
+      }
+      return peers.peers.some((peer) => peer.node === "ua" && peer.health === "dead")
+    })
+    await until(async () => {
+      await b.syncOnce()
+      return (await shardTypes(directoryB, "ub")).join(",") === "shard.compact"
+    })
+
+    // The tombstone is collected: the peer holds nothing this node pushed, and it never
+    // folded an element of ours, so nothing it holds can contest the deletion. The fold
+    // still reads empty — collection dropped the shadowed operations, not the deletion.
+    expect(await shardTypes(directoryB, "ub")).toEqual(["shard.compact"])
+    expect(foldOperations(await new ShardLog(new FileBackend(directoryB), "ub").read())).toEqual({
+      entities: [],
+      relations: [],
+    })
+    // The tolerated peer is counted, so the trade this makes is visible in /metrics.
+    const metrics = await fetch(`${b.url}/metrics`).then((response) => response.text())
+    expect(metrics).toContain("noonien_gossip_unreached_peers 1")
+    expect(metrics).toContain("noonien_gossip_frozen_elements 0")
+    expect(metrics).toContain("noonien_gossip_blankets 0")
+  })
+
   it("keeps the evidence while a peer the round cannot reach suspends the collection", async () => {
     const directoryB = await tempDirectory()
     const portB = await freePort()

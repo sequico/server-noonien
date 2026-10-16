@@ -529,12 +529,13 @@ interface CollectInput {
  *   could hold anything" the gate already applied to it, now stated once instead of
  *   carried as an unverifiable map;
  * - **no record at all** (never reached): left alone, because there is nothing to
- *   materialise. A claimed-but-unreachable node stays the conservative blank it has
- *   always been; bounding that is a separate policy, recorded as future work.
+ *   materialise. The gate needs no blank for it either — {@link meshState} reads a
+ *   never-reached peer as holding nothing this node pushed — so it gates nothing until
+ *   it exchanges, at which point its own frontier gates it properly.
  *
- * Retiring also takes the node out of membership: keeping it there would re-assert a
- * blank the gate must no longer read (`retainedPeers` unions membership with the
- * knowledge), which would quietly over-block the whole mesh.
+ * Retiring also takes the node out of membership: its protection is durable now, and
+ * the entry would keep a peer whose live record is gone in the peer set — contacted every
+ * round, and counted as retained — for nothing.
  */
 export function retireSilentPeers(input: RetireInput): void {
   if (input.forgetAfterMs <= 0) {
@@ -601,7 +602,9 @@ export interface RetireInput {
  * machine gone for a year keeps blocking only the elements it knew; the gating set is
  * the membership's known and forgotten peers **plus every peer ever exchanged with**,
  * so a membership drop cannot silently unblock a deletion. How long each peer has been
- * away and how many elements stay frozen are published as metrics.
+ * away and how many elements stay frozen are published as metrics. A retained peer this
+ * node has **never exchanged with** gates nothing: it holds nothing this node pushed, and
+ * the authors of anything it can answer causally gate for themselves (`meshState`).
  */
 async function collect(input: CollectInput): Promise<void> {
   // Retire before the sets below are computed: a retired peer is no longer a live
@@ -620,9 +623,10 @@ async function collect(input: CollectInput): Promise<void> {
   const blockers = retained.filter((node) => !input.ignored.has(node))
   const pending = blockers.filter((node) => !input.covered.has(node))
   const known = new Set(input.membership.known().map((entry) => entry.node))
+  const reachable = (node: string) => known.has(node) && input.membership.healthOf(node) !== "dead"
   const state = meshState({
     pending,
-    reachable: (node) => known.has(node) && input.membership.healthOf(node) !== "dead",
+    reachable,
     // Forfeited authors are dropped from every frontier the gate reads, so a revoked or
     // departed node stops holding the collection back through the peers that hold its
     // replica (see `withoutForfeited`).
@@ -638,6 +642,12 @@ async function collect(input: CollectInput): Promise<void> {
     "noonien_gossip_retained_peers",
     "Peers whose knowledge still gates collection",
     retained.length,
+  )
+  input.metrics.gauge(
+    "noonien_gossip_unreached_peers",
+    "Retained peers never exchanged with, whose ignorance gates no collection",
+    pending.filter((node) => !reachable(node) && input.knowledge.frontier(node) === undefined)
+      .length,
   )
   input.metrics.gauge(
     "noonien_gossip_retired_authors",

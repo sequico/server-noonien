@@ -541,10 +541,16 @@ acknowledgements nor a timer on the data is needed. What it *does* need is a **s
 live set**: every retained peer that is still reachable must have been exchanged with in that round
 (otherwise the round **suspends**, because such a peer may hold writes this node has not pulled),
 and no retained peer may hold anything this node lacks. That is why `NOONIEND_FANOUT` and
-`NOONIEND_GC` exclude each other. Liveness is not autonomous: a peer that is both unreachable and
-unverifiable — never reached, or holding operations this node cannot read — blocks collection until
-the operator departs it (`NOONIEND_REVOKED` / `NOONIEND_DEPARTED`); the retention window bounds
-*metadata* and forfeits no data, but it does not remove that decision.
+`NOONIEND_GC` exclude each other. Liveness is not autonomous: a peer that is unreachable *and*
+unverifiable — holding operations this node cannot read — blocks collection until the operator
+departs it (`NOONIEND_REVOKED` / `NOONIEND_DEPARTED`); the retention window bounds *metadata* and
+forfeits no data, but it does not remove that decision. A peer this node has **never exchanged
+with**, on the other hand, gates nothing: it holds nothing this node pushed, and any operation it
+can answer causally is authored by a node that gates for itself, since operations reach it through
+the mesh and the peer that relayed one reports that author's high-water mark — a mark this node
+lacks blocks on its own. What that rule cannot see is an operation delivered and answered entirely
+among peers this node never exchanges with; the peers it tolerates this way are published as
+`noonien_gossip_unreached_peers`.
 
 Each peer's knowledge frontier — the greatest sequence it has been seen to hold of every author's
 shard — is **durable**, persisted beside the shards in `.nooniend-peers.json`, so a machine gone
@@ -573,7 +579,8 @@ which is why the window can be on by default. `NOONIEND_REVOKED` and `NOONIEND_D
 the only forfeiture — and since a maximum cannot be un-merged, a node must be departed **before**
 its window expires for its contribution to be lifted. A frontier that claims an author this node
 cannot serve is never recorded: a peer cannot freeze the mesh with a claim it cannot back. A claimed
-node that was never reached keeps blocking conservatively, as before.
+node that was never reached has nothing to materialise and gates nothing while it stays silent; its
+own frontier gates it from the first exchange.
 
 **Without the daemon** a physical deletion needs an explicit promise. A daemon that owns the
 directory (`.nooniend-peers.json` present) holds the peer knowledge and collects, and it is the
@@ -598,6 +605,7 @@ collection and retention state:
 | `noonien_gossip_absent_nodes` | retained peers not exchanged with in the last round |
 | `noonien_gossip_absent_seconds{node}` | how long each peer has been away |
 | `noonien_gossip_retained_peers` | peers whose knowledge still gates collection |
+| `noonien_gossip_unreached_peers` | retained peers never exchanged with, whose ignorance gates no collection |
 | `noonien_gossip_retired_total` | peers retired into the retired frontier |
 | `noonien_gossip_retired_unaccounted_total` | peers retired with a blanket |
 | `noonien_gossip_retired_authors` | authors whose thresholds survive in the retired frontier |

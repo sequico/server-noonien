@@ -204,13 +204,16 @@ on a specific provider.
   expires). Two details make it sound: the *comparison* is kept rather than the elements it once
   covered — a per-element pin computed at expiry would miss a tombstone created **after** the expiry
   — and a frontier that claims an author this node cannot serve is never recorded, so a peer cannot
-  freeze the mesh with a claim it cannot back. A claimed node that was never reached keeps blocking
-  conservatively, as before. What remains of liveness is stated too: collection needs a **stable
+  freeze the mesh with a claim it cannot back. A claimed node that was never reached has nothing to
+  materialise and gates nothing while it stays silent: it holds nothing this node pushed, and every
+  operation it can answer causally is authored by a node that gates for itself. What remains of
+  liveness is stated too: collection needs a **stable
   round over the live set** — every still-reachable retained peer exchanged with, none holding
   anything this node lacks — while over the peer history it needs no barrier, which is exactly what
   the durable frontier buys. A `NOONIEND_FANOUT` cap excludes `NOONIEND_GC` for that reason. And
   the one place a human decision remains is stated too: a peer that is both unreachable and
-  unverifiable blocks collection until the operator departs it, so the window bounds metadata
+  unverifiable — one holding operations this node cannot read — blocks collection until the operator
+  departs it, so the window bounds metadata
   without removing the decision.
 
 ## Tool surface

@@ -259,12 +259,11 @@ export class Membership {
    * backoff. A newer version it announces also refreshes the stored entry. An
    * unknown node is ignored: membership grows from `/info`, from a seed or from a
    * peer's gossiped list — **never from the headers of an inbound request**, which any
-   * host that can reach the port can send. Adopting one from there would let a
-   * stranger join the mesh and then block every tombstone collection for ever (a peer
-   * that never folds an element holds no frontier, so the gate has to assume it could
-   * hold anything) until an operator departed it by hand. Nothing is lost by refusing:
-   * the server offers the address the request came from as a discovery candidate, so
-   * a statically-seeded joiner is still learned — confirmed against its own `/info`,
+   * host that can reach the port can send. The address in those headers is the
+   * caller's to choose, so adopting one from there hands any host that can open a
+   * socket a say in where this node dials next. Nothing is lost by refusing: the
+   * server offers the address the request came from as a discovery candidate, so a
+   * statically-seeded joiner is still learned — confirmed against its own `/info`,
    * exactly like any other candidate.
    */
   touch(node: string, version: number, now = Date.now()): void {

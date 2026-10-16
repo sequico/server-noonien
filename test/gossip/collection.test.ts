@@ -65,10 +65,41 @@ describe("meshState", () => {
     expect(state).toEqual({ suspended: true, peers: [], local })
   })
 
+  it("ignores a peer it never exchanged with", () => {
+    // The freeze this replaces: a member admitted and then gone held no frontier, and the
+    // gate read that as "could hold anything", so one silent stranger froze collection for
+    // ever. It holds nothing this node pushed, and whatever it can answer causally is
+    // authored by a node that gates for itself, so it contributes nothing here.
+    const local = new Map([["a", 1]])
+    const state = meshState({
+      pending: ["stranger"],
+      reachable: () => false,
+      frontier: () => undefined,
+      retired: new Map(),
+      blanket: false,
+      local,
+    })
+    expect(state).toEqual({ suspended: false, peers: [new Map()], local })
+  })
+
+  it("still gates on the peers it did exchange with, past a stranger", () => {
+    const local = new Map([["a", 1]])
+    const frontier = new Map([["b", 4]])
+    const state = meshState({
+      pending: ["stranger", "peer"],
+      reachable: () => false,
+      frontier: (node) => (node === "peer" ? frontier : undefined),
+      retired: new Map(),
+      blanket: false,
+      local,
+    })
+    expect(state).toEqual({ suspended: false, peers: [frontier, new Map()], local })
+  })
+
   it("carries the retired frontier and a durable blanket into the gate", () => {
     // Retirement must not change what the gate decides: the thresholds arrive as one
-    // more frontier, and a blanket arrives as the "could hold anything" the gate
-    // already reads from a peer never reached.
+    // more frontier, and a blanket arrives as the "could hold anything" the gate reads
+    // as `undefined` — the one statement left that no peer backs up.
     const local = new Map([["a", 1]])
     const retired = new Map([["a", 1]])
     const base = { pending: [], reachable: () => true, frontier: () => undefined, local }
@@ -103,7 +134,7 @@ describe("collectable", () => {
     expect(collectable({ suspended: false, peers: [], local: none }, ops)).toBe(true)
   })
 
-  it("blocks every element for a peer never reached", () => {
+  it("blocks every element for a blanket", () => {
     expect(collectable({ suspended: false, peers: [undefined], local: none }, ops)).toBe(false)
   })
 

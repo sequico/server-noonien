@@ -334,7 +334,9 @@ NOONIEN_BACKEND=s3 NOONIEN_S3_BUCKET=my-bucket NOONIEN_NODE_ID=ai server-noonien
 
 - **`file`** — shards are `*.jsonl` files in `NOONIEN_DIR`; point it at a folder replicated by
   Syncthing, Dropbox, a git working tree or a shared mount.
-- **`s3`** — one object per shard, written with conditional writes retried on contention; uses
+- **`s3`** — one object per shard, written with conditional writes retried on contention, waiting
+  the same budget the `file` backend gives a lock, so a competing writer on one node id costs a wait
+  rather than a failed write; uses
   `@aws-sdk/client-s3` (an optional dependency, loaded only when selected). Conditional writes need
   a store that honours `If-Match`/`If-None-Match` on `PutObject` (AWS S3, Cloudflare R2, MinIO do);
   a store that ignores them is not supported, and a conditional *write* carrying an ETag the store

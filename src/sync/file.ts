@@ -19,6 +19,8 @@ import { join } from "node:path"
 import { isNotFound } from "../errors.js"
 import {
   assertShardName,
+  CONTENTION_BUDGET_MS,
+  delay,
   isSafeNodeId,
   NO_SHARD,
   nodeOfShard,
@@ -38,13 +40,10 @@ const LOCK_RETRY_MS = 20
 /**
  * The longest a writer waits for a lock a live holder keeps refreshing. A lock is
  * stolen only when it goes stale; a compaction that legitimately runs longer than the
- * stale timeout is waited out (bounded) instead of failing the write.
+ * stale timeout is waited out (bounded) instead of failing the write. It is the
+ * contention budget the object-store backend shares, so the two wait alike.
  */
-const LOCK_MAX_WAIT_MS = 5 * 60_000
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+const LOCK_MAX_WAIT_MS = CONTENTION_BUDGET_MS
 
 /**
  * Shards as `<name>.jsonl` files inside one directory. Point the directory at

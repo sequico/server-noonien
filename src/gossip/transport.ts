@@ -8,6 +8,7 @@ import { request as httpsRequest } from "node:https"
 import { decodeOperations, encodeOperation } from "../graph/codec.js"
 import type { Operation } from "../graph/operations.js"
 import type { Metrics } from "../metrics.js"
+import { shardName } from "../sync/backend.js"
 import {
   type DigestDto,
   DigestSchema,
@@ -159,7 +160,7 @@ export class HttpTransport implements PeerTransport {
       // A truncated page can end mid-line: cut it back to the last whole line so the
       // codec never reports a torn line, and the next page re-fetches the rest.
       const whole = truncated ? text.slice(0, text.lastIndexOf("\n") + 1) : text
-      const ops = decodeOperations(whole, "a peer shard")
+      const ops = decodeOperations(whole, shardName(node))
       collected.push(...ops)
       const last = ops[ops.length - 1]
       // Stop on the last page, and never loop when the peer ignores the cursor.

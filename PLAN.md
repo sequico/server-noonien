@@ -71,8 +71,10 @@ Properties required and tested:
   each shard is decoded once and cached against a cheap fingerprint (mtime + inode, a version
   counter, or an object ETag), so a read re-parses only the shards that changed and the folded graph
   is memoized — an unchanged read costs one fingerprint poll per shard. A malformed shard line is
-  skipped and reported once per read with how many lines it covered, so a concurrent append never
-  fails a whole read and corruption is visible without flooding stderr.
+  skipped and reported once per read with how many lines it covered and which lines they are, so a
+  concurrent append never fails a whole read and corruption is visible without flooding stderr: the
+  same corruption in the same shard is said once, not once a round for a peer that keeps pushing the
+  same body, and a rewrite that would erase an unreadable line refuses and names it.
 - **Compaction** — online and via `noonien compact`: rewrite a node's shard keeping, per element,
   only the operations no later one shadows, as a compare-and-swap that re-reads and retries on a
   conflict. Each compaction stamps a `shard.compact` metadata operation (never a graph element)

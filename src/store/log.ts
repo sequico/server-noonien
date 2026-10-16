@@ -657,12 +657,16 @@ export class ShardLog implements OperationLog {
     if (text === undefined) {
       return { before: 0, after: 0, frozen: 0, dropped: 0 }
     }
-    const { ops: all, corrupted } = decodeShard(text, this.shardName)
-    if (corrupted > 0) {
+    const { ops: all, corruptedLines } = decodeShard(text, this.shardName)
+    if (corruptedLines.length > 0) {
       // A rewrite re-encodes only decoded operations, so a corrupt line would be
-      // erased for good. Refuse instead of losing data we could not parse.
+      // erased for good. Refuse instead of losing data we could not parse — and name
+      // the lines, so the operator has something to open rather than a count.
+      const where = corruptedLines.join(", ")
       throw new Error(
-        `shard ${this.shardName} has ${corrupted} corrupt line(s); refusing to rewrite over them`,
+        `shard ${this.shardName} has ${corruptedLines.length} corrupt line(s) ` +
+          `(${corruptedLines.length === 1 ? "line" : "lines"} ${where}); ` +
+          "refusing to rewrite over them",
       )
     }
     const own = all.filter((op) => op.node === this.nodeId && op.type !== "shard.compact")

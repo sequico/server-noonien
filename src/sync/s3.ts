@@ -4,6 +4,8 @@
 
 import {
   assertShardName,
+  CONTENTION_BUDGET_MS,
+  delay,
   isSafeNodeId,
   NO_SHARD,
   nodeOfShard,
@@ -57,8 +59,10 @@ export interface S3Settings extends AwsS3Config {
 /** Loads the concrete S3 operations on first use, keeping the SDK optional. */
 export type S3OperationsLoader = () => Promise<S3Operations>
 
-/** How many times a conditional write is retried before giving up. */
-const MAX_CONDITIONAL_ATTEMPTS = 5
+/** First wait between two conditional attempts, doubling up to a cap. */
+const CONTENTION_BACKOFF_MS = 20
+/** Longest wait between two conditional attempts: contention is a wait, not a spin. */
+const CONTENTION_BACKOFF_MAX_MS = 1000
 
 /**
  * Shards as objects in an S3-compatible bucket (AWS S3, Cloudflare R2,
@@ -109,37 +113,53 @@ export class S3Backend implements SyncBackend {
 
   async append(name: string, text: string, expected?: string): Promise<void> {
     assertShardName(name)
-    const operations = await this.operations()
-    const key = this.prefix + name
-    for (let attempt = 0; attempt < MAX_CONDITIONAL_ATTEMPTS; attempt += 1) {
-      const current = await operations.getVersioned(key)
+    await this.conditional(name, (current) => {
       if (expected !== undefined && (current?.version ?? NO_SHARD) !== expected) {
         // The object moved under the content this caller derived from, so appending
         // would write a sequence another writer already spent.
         throw shardChanged(name)
       }
-      const content = `${current?.content ?? ""}${text}`
-      if (await operations.putConditional(key, content, current?.version)) {
-        return
-      }
-    }
-    throw shardContended(name)
+      return `${current?.content ?? ""}${text}`
+    })
   }
 
   async replace(name: string, text: string, expected: string | undefined): Promise<void> {
     assertShardName(name)
-    const operations = await this.operations()
-    const key = this.prefix + name
-    for (let attempt = 0; attempt < MAX_CONDITIONAL_ATTEMPTS; attempt += 1) {
-      const current = await operations.getVersioned(key)
+    await this.conditional(name, (current) => {
       if (current?.content !== expected) {
         throw shardChanged(name)
       }
-      if (await operations.putConditional(key, text, current?.version)) {
+      return text
+    })
+  }
+
+  /**
+   * Run one conditional write, re-reading the object on a lost race and waiting
+   * between attempts until the contention budget runs out: two writers on one node id
+   * serialize instead of one of them failing on the first collision.
+   *
+   * `build` gets the object as it is now and returns what to write; it throws when what
+   * it read cannot be used — a stale token, content that moved — which is the caller's
+   * own refusal, not contention, so it is never retried.
+   */
+  private async conditional(
+    name: string,
+    build: (current: VersionedObject | undefined) => string,
+  ): Promise<void> {
+    const operations = await this.operations()
+    const key = this.prefix + name
+    const deadline = Date.now() + CONTENTION_BUDGET_MS
+    for (let attempt = 0; ; attempt += 1) {
+      const current = await operations.getVersioned(key)
+      const content = build(current)
+      if (await operations.putConditional(key, content, current?.version)) {
         return
       }
+      if (Date.now() >= deadline) {
+        throw shardContended(name)
+      }
+      await delay(Math.min(CONTENTION_BACKOFF_MAX_MS, CONTENTION_BACKOFF_MS * 2 ** attempt))
     }
-    throw shardContended(name)
   }
 
   private operations(): Promise<S3Operations> {

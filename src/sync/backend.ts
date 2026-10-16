@@ -118,6 +118,19 @@ export function shardContended(name: string): Error {
   )
 }
 
+/**
+ * How long a writer waits out contention before giving up. Both backends use it, so a
+ * lost race costs the same whether the shard is a file (a lock a live holder keeps
+ * refreshing) or an object (a conditional write another writer keeps winning): the
+ * write waits, it does not fail on the first collision.
+ */
+export const CONTENTION_BUDGET_MS = 5 * 60_000
+
+/** Wait `ms` before the next attempt. */
+export function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 /** The error a compaction raises when it keeps losing the compare-and-swap. */
 export function compactionContended(name: string): Error {
   return new Error(

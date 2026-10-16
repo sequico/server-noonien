@@ -80,9 +80,13 @@ describe("ShardLog", () => {
   it("reports a skipped malformed line on stderr", async () => {
     const spy = vi.spyOn(process.stderr, "write").mockReturnValue(true)
     const backend = new MemoryBackend()
-    await backend.append("n1.jsonl", "not json\n")
+    // Its own corrupt text: a repeat of corruption already reported for this source is
+    // said once, not every read.
+    await backend.append("n1.jsonl", '{"broken":\n')
     await new ShardLog(backend, "n1").read()
-    expect(spy).toHaveBeenCalledWith(expect.stringContaining("server-noonien:"))
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("skipping 1 malformed line(s) in n1.jsonl (line 1)"),
+    )
   })
 
   it("reports the shards it can see", async () => {
@@ -378,8 +382,11 @@ describe("ShardLog", () => {
       "n1.jsonl",
       `${encodeOperation(first)}\n{ not json }\n${encodeOperation(second)}\n`,
     )
-    // A rewrite would re-encode only the decoded ops and erase the corrupt line.
-    await expect(new ShardLog(backend, "n1").compact()).rejects.toThrow(/corrupt/)
+    // A rewrite would re-encode only the decoded ops and erase the corrupt line, and
+    // the refusal names it so an operator has something to open.
+    await expect(new ShardLog(backend, "n1").compact()).rejects.toThrow(
+      /has 1 corrupt line\(s\) \(line 2\); refusing/,
+    )
   })
 
   it("drops a torn trailing line and compacts the rest", async () => {

@@ -12,7 +12,7 @@ import { decodeOperations, encodeOperation } from "../graph/codec.js"
 import { foldOperations } from "../graph/fold.js"
 import type { Operation } from "../graph/operations.js"
 import type { Metrics } from "../metrics.js"
-import { isSafeNodeId } from "../sync/backend.js"
+import { isSafeNodeId, shardName } from "../sync/backend.js"
 import { addressHost, formatHostPort } from "./address.js"
 import { bucketEntries, computeDigest, DIGEST_BUCKETS } from "./digest.js"
 import type { PeerKnowledge } from "./knowledge.js"
@@ -429,7 +429,10 @@ async function handleOps(
       })
       return true
     }
-    const ops = decodeOperations(await readBody(request, options.maxBodyBytes ?? MAX_BODY_BYTES))
+    const ops = decodeOperations(
+      await readBody(request, options.maxBodyBytes ?? MAX_BODY_BYTES),
+      shardName(name),
+    )
     const foreign = ops.find((op) => op.node !== name)
     if (foreign !== undefined) {
       send(response, 400, {

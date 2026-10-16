@@ -2,16 +2,20 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { MemoryGraph } from "../../src/graph/graph.js"
 import { ShardLog } from "../../src/store/log.js"
+import { CONTENTION_BUDGET_MS } from "../../src/sync/backend.js"
 import type { S3Operations, VersionedObject } from "../../src/sync/s3.js"
 import { S3Backend } from "../../src/sync/s3.js"
 
 class FakeS3 implements S3Operations {
   private readonly objects = new Map<string, VersionedObject>()
   private versionCounter = 0
-  failNextConditional = false
+  /** How many conditional writes to refuse, as a competing writer would. */
+  failConditionalTimes = 0
+  /** Every attempt made, so a test can see how hard the backend tried. */
+  attempts = 0
 
   list(prefix: string): Promise<string[]> {
     return Promise.resolve([...this.objects.keys()].filter((key) => key.startsWith(prefix)).sort())
@@ -31,8 +35,9 @@ class FakeS3 implements S3Operations {
   }
 
   putConditional(key: string, content: string, version: string | undefined): Promise<boolean> {
-    if (this.failNextConditional) {
-      this.failNextConditional = false
+    this.attempts += 1
+    if (this.failConditionalTimes > 0) {
+      this.failConditionalTimes -= 1
       return Promise.resolve(false)
     }
     const current = this.objects.get(key)
@@ -83,9 +88,29 @@ describe("S3Backend", () => {
   it("retries an append when the object changed underneath it", async () => {
     const store = new FakeS3()
     const s3 = backend(store)
-    store.failNextConditional = true
+    store.failConditionalTimes = 1
     await s3.append("n1.jsonl", "a\n")
     expect(await s3.read("n1.jsonl")).toBe("a\n")
+  })
+
+  it("keeps waiting out contention until the budget runs out, not for five tries", async () => {
+    // A competing writer on one node id is a documented mistake, not a reason to fail
+    // the agent's write on the fifth collision: the two backends wait alike.
+    vi.useFakeTimers()
+    try {
+      const store = new FakeS3()
+      const s3 = backend(store)
+      store.failConditionalTimes = Number.POSITIVE_INFINITY
+      const giving: Promise<Error> = s3.append("n1.jsonl", "a\n").then(
+        () => new Error("the append resolved against a writer that never stopped"),
+        (error: unknown) => error as Error,
+      )
+      await vi.advanceTimersByTimeAsync(CONTENTION_BUDGET_MS + 5_000)
+      expect((await giving).message).toMatch(/being written concurrently/)
+      expect(store.attempts).toBeGreaterThan(5)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("replaces a shard object only while its content is unchanged", async () => {

@@ -33,6 +33,12 @@ version and its date.
   line, which a pretty-printed `memory.json` turned into a hundred thousand blocking writes.
 - Refuse a `NOONIEND_ADVERTISE` value that is not a `host:port` at startup, instead of letting every
   peer drop the entry and leaving the node a member nowhere.
+- **A corrupt shard line is now something an operator can find.** The decoder names the lines it
+  dropped and reports that corruption once per shard instead of once per read — a peer repeating the
+  same body no longer writes the same warning every round — and a rewrite that would erase an
+  unreadable line refuses with the line numbers in the message.
+- On `s3`, contention is waited out on the same budget the `file` backend gives a lock, with a
+  growing pause between attempts, instead of giving up after five immediate retries.
 - `npm run gate` (and CI) now runs `npm audit --audit-level=high`, and the release workflow pins
   `mcp-publisher` by version and digest instead of downloading `latest` next to an OIDC token.
 - **Security.** A caller that is not a member yet is no longer adopted from the headers of its

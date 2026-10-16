@@ -77,15 +77,26 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      checks: write # publish the lint annotations on the PR's check run
-      pull-requests: read # read the changed workflow files
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: reviewdog/action-actionlint@1758727be30241166609dad4c97588b6ad411f32 # v1.79.1
-        with:
-          fail_level: error
+      # actionlint directly, not through the reviewdog wrapper: the wrapper publishes its
+      # result as a check run, and a Dependabot PR's read-only token cannot do that, so the
+      # job failed with no finding to show. The release tarball is pinned by SHA-256, the
+      # way the other downloaded tools are; the version and the digest move together.
+      - name: actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          base="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"
+          curl -sSL -o "$RUNNER_TEMP/actionlint.tar.gz" \
+            "${base}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  ${RUNNER_TEMP}/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color
 
   workflow-security:
     name: workflow security

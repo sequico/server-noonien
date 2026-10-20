@@ -9,6 +9,8 @@ version and its date.
 
 ## Unreleased
 
+- The README header carries the mcprush grade badge next to the Glama one, both linking to the
+  server listing.
 - **Two servers on one node id no longer strand each other's writes.** An append now carries the
   shard state its sequence numbers were derived from, so the writer that loses the race is refused
   and re-derives: both operations land on their own sequences and every peer receives both, instead

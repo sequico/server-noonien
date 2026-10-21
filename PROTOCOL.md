@@ -168,10 +168,10 @@ single response cannot force unbounded state out of a peer.
 
 ## Registration
 
-The service (TCP, service name `noonien`) is registered with IANA in the **Service Name and
-Transport Protocol Port Number Registry** under the **Expert Review** procedure (RFC 6335 §8.1.2,
-RFC 7605, RFC 8126). The **port number is not assigned**: the reviewer held the assignment and
-asked the daemon to run on a port self-selected from the dynamic range (49152-65535) until one is
-assigned — the default is **49778**. The **service name** assignment remains under review. The
-application, its data and its procedure are tracked in the private `server-noonien-internal`
-repository; this document is the technical reference cited by it.
+The service (TCP, service name `noonien`) has an open application to IANA for the **Service Name
+and Transport Protocol Port Number Registry**, under the **Expert Review** procedure (RFC 6335
+§8.1.2, RFC 7605, RFC 8126). The **port number is not assigned**: the reviewer held the
+assignment and asked the daemon to run on a port self-selected from the dynamic range
+(49152-65535) until one is assigned — the default is **49778**. The **service name** assignment
+remains under review. The application, its data and its procedure are tracked in the private
+`server-noonien-internal` repository; this document is the technical reference cited by it.

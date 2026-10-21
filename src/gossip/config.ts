@@ -9,10 +9,10 @@ import { parseFlag, parseInteger } from "../env.js"
 import { formatHostPort, isPeerAddress, parseHostPort } from "./address.js"
 
 /**
- * Default TCP port for the gossip service: a port self-selected from the dynamic
- * range (49152-65535). The IANA application for a port number and for the service
- * name `noonien` is under review and no number is assigned yet, so the daemon
- * must not sit on an assignable port that is not ours.
+ * Default TCP port for the gossip service, selected from the dynamic range
+ * (49152-65535). The service is deployed on a private network — Tailscale or
+ * another VPN — where every peer is configured with the port instead of looking
+ * it up, so no number reserved by an authority is needed.
  */
 export const DEFAULT_GOSSIP_PORT = 49778
 

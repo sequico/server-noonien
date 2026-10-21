@@ -9,10 +9,9 @@ version and its date.
 
 ## Unreleased
 
-- **The daemon no longer listens on a port that is not ours.** The default listen port is `49778`,
-  self-selected from the dynamic range (49152-65535): the IANA reviewer held the port number
-  assignment and asked the service to run on a self-selected dynamic port until a number is
-  assigned. The service name `noonien` is still under review.
+- **The default listen port is `49778`**, selected from the dynamic range (49152-65535). The service
+  is meant for a private network — Tailscale or another VPN — where the port is configured on every
+  peer instead of looked up, so no reserved number is needed; a mesh runs one port on every node.
 - The README header carries the mcprush grade badge next to the Glama one, both linking to the
   server listing.
 - **Two servers on one node id no longer strand each other's writes.** An append now carries the
@@ -89,9 +88,9 @@ version and its date.
   adopted at once, and warn when `NOONIEND_ADVERTISE` and `NOONIEND_LISTEN` disagree on the port.
 - `nooniend` POSTs `{ node, watermark }` to `NOONIEND_HOOK_URL` when the stable watermark advances, so
   a listener learns that a peer wrote something (best effort; it never announces a regression).
-- Change the default `nooniend` listen port to `27878`, the IANA user port the service is being
-  registered for. A mesh must run one port on every node — a discovery seed carries none and takes
-  the dialer's own — so upgrade the nodes together, or pin `NOONIEND_LISTEN` while they are mixed.
+- Change the default `nooniend` listen port to `27878`. A mesh must run one port on every node — a
+  discovery seed carries none and takes the dialer's own — so upgrade the nodes together, or pin
+  `NOONIEND_LISTEN` while they are mixed.
 - Document the `nooniend` wire protocol in [`PROTOCOL.md`](PROTOCOL.md); the README's daemon API
   section now points to it.
 - Disclose the package's one process spawn — `execFile` without a shell, in `nooniend` only and

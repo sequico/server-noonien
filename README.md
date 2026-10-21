@@ -464,10 +464,10 @@ VPN or firewall and enable mTLS — see [Security](#security).
 | `NOONIEND_TLS_CA` | — | CA that signs the peers' certificates, used to verify them in both directions. |
 | `NOONIEND_TLS_REQUIRE_CLIENT` | on | Require a client certificate (mTLS). |
 
-**Listen port.** The daemon listens on `49778`, a port **self-selected from the dynamic range**
-(49152-65535). The service name `noonien` is applied for with IANA, but no port number is assigned
-yet, so the daemon must not sit on an assignable port that is not ours: it uses one from the
-dynamic range, and the number may change when an assignment comes.
+**Listen port.** The daemon listens on `49778`, a port we select ourselves from the dynamic range
+(49152-65535). Nothing assigns it and nothing has to: the expected deployment is a private
+network — Tailscale or another VPN, with the port reachable only over it — where every peer is
+configured with the port instead of looking it up, so no reserved number is needed.
 A mesh is only as reachable as its ports: a discovery seed carries no port and takes the
 **dialer's** own, so a node left on a different port is never found. Give every node the same
 port, and set `NOONIEND_LISTEN` and `NOONIEND_ADVERTISE` to match while they are mixed.

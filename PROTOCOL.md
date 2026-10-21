@@ -2,8 +2,8 @@
 
 Normative description of the protocol the `nooniend` daemon speaks over the network, as implemented
 in `src/gossip/`. It is the technical reference for interoperability, for reviewing the replication
-design, and for the IANA service-name registration of the service (Expert Review; see
-[Registration](#registration)). The environment variables that configure the daemon are listed in
+design, and for the port and discovery model of the service (see [Port](#port)). The environment
+variables that configure the daemon are listed in
 [`README.md`](README.md#daemon-variables) and are not repeated here.
 
 ## Role
@@ -166,12 +166,11 @@ single response cannot force unbounded state out of a peer.
 - **Deployment.** The service is designed to run behind a VPN or firewall; without TLS its routes are
   unauthenticated and must not be exposed to an untrusted network.
 
-## Registration
+## Port
 
-The service (TCP, service name `noonien`) has an open application to IANA for the **Service Name
-and Transport Protocol Port Number Registry**, under the **Expert Review** procedure (RFC 6335
-§8.1.2, RFC 7605, RFC 8126). The **port number is not assigned**: the reviewer held the
-assignment and asked the daemon to run on a port self-selected from the dynamic range
-(49152-65535) until one is assigned — the default is **49778**. The **service name** assignment
-remains under review. The application, its data and its procedure are tracked in the private
-`server-noonien-internal` repository; this document is the technical reference cited by it.
+The service listens on **49778**, a number selected by us from the dynamic range (49152-65535).
+Nothing assigns it and nothing has to: the expected deployment is a private network — Tailscale,
+or another VPN, with the port reachable only over it — where every peer is configured with the
+port instead of looking it up, so a number reserved by an authority buys nothing. The number is
+part of the mesh configuration, not of the service: a discovery seed carries no port and takes the
+**dialer's** own, so the same number must be set on every node.

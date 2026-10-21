@@ -7,7 +7,7 @@ version and its date.
 
 [rp]: https://github.com/googleapis/release-please
 
-## Unreleased
+## 1.1.1 (2026-10-21)
 
 - **The default listen port is `49778`**, selected from the dynamic range (49152-65535). The service
   is meant for a private network — Tailscale or another VPN — where the port is configured on every

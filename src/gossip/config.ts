@@ -8,8 +8,13 @@ import { warn } from "../diagnostics.js"
 import { parseFlag, parseInteger } from "../env.js"
 import { formatHostPort, isPeerAddress, parseHostPort } from "./address.js"
 
-/** Default TCP port for the gossip service (IANA user port, registration pending). */
-export const DEFAULT_GOSSIP_PORT = 27878
+/**
+ * Default TCP port for the gossip service: a port self-selected from the dynamic
+ * range (49152-65535). The IANA application for a port number and for the service
+ * name `noonien` is under review and no number is assigned yet, so the daemon
+ * must not sit on an assignable port that is not ours.
+ */
+export const DEFAULT_GOSSIP_PORT = 49778
 
 /**
  * Default retention window: 180 days. Long enough that only a node genuinely gone is
@@ -97,7 +102,7 @@ export interface GossipConfig {
  * default): `memory` and `s3` are refused rather than silently replicating a local
  * folder the server never uses.
  *
- * - `NOONIEND_LISTEN` — `host:port` to bind, default `0.0.0.0:27878`.
+ * - `NOONIEND_LISTEN` — `host:port` to bind, default `0.0.0.0:49778`.
  * - `NOONIEND_ADVERTISE` — `host:port` this node advertises, default from
  *   the listen host (or the hostname when the bind is a wildcard).
  * - `NOONIEND_PEERS` — static seed list, `node@host:port` or `host:port`.

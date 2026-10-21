@@ -10,7 +10,7 @@ const MEMBERSHIP_TTL_MS = 2000
 
 function membership(): Membership {
   return new Membership({
-    self: { node: "self", address: "self:27878", version: 100 },
+    self: { node: "self", address: "self:49778", version: 100 },
     suspectAfter: 2,
     deadAfter: 3,
     deadRetryMs: DEAD_RETRY_MS,
@@ -47,7 +47,7 @@ describe("Membership", () => {
   it("never lets a remote entry override the local node", () => {
     const set = membership()
     set.merge([{ node: "self", address: "attacker:1", version: 999 }])
-    expect(set.self()).toEqual({ node: "self", address: "self:27878", version: 100 })
+    expect(set.self()).toEqual({ node: "self", address: "self:49778", version: 100 })
   })
 
   it("marks a peer suspect, then dead, after consecutive failures", () => {

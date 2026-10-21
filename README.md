@@ -227,7 +227,7 @@ nooniend
 
 # or, with no self-listing underlay, seed one reachable peer
 NOONIEN_DIR=~/.noonien \
-NOONIEND_PEERS=ai.example:27878 \
+NOONIEND_PEERS=ai.example:49778 \
 nooniend
 ```
 
@@ -306,15 +306,15 @@ WantedBy=default.target
 
 ### The daemon HTTP API
 
-`nooniend` serves a small HTTP/JSON API on `NOONIEND_LISTEN` (default `0.0.0.0:27878`). The full wire
+`nooniend` serves a small HTTP/JSON API on `NOONIEND_LISTEN` (default `0.0.0.0:49778`). The full wire
 contract — routes and payloads, the operation format, the protocol revision and capabilities, the
 size limits and the mTLS model — is specified in [`PROTOCOL.md`](PROTOCOL.md).
 
 ```sh
-curl -s http://127.0.0.1:27878/health
-curl -s http://127.0.0.1:27878/status
-curl -s http://127.0.0.1:27878/peers
-curl -s http://127.0.0.1:27878/graph | jq '{entities: (.entities|length), relations: (.relations|length)}'
+curl -s http://127.0.0.1:49778/health
+curl -s http://127.0.0.1:49778/status
+curl -s http://127.0.0.1:49778/peers
+curl -s http://127.0.0.1:49778/graph | jq '{entities: (.entities|length), relations: (.relations|length)}'
 ```
 
 `/graph` folds everything the node holds, so it is a diagnostic for a normal directory: past 50 000
@@ -439,7 +439,7 @@ VPN or firewall and enable mTLS — see [Security](#security).
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `NOONIEND_LISTEN` | `0.0.0.0:27878` | `host:port` the gossip service binds. |
+| `NOONIEND_LISTEN` | `0.0.0.0:49778` | `host:port` the gossip service binds. |
 | `NOONIEND_ADVERTISE` | the listen host (hostname on a wildcard) | **Optional.** `host:port` this node advertises to peers; set it only when the default does not resolve from the others. A value that is not a `host:port` is refused at startup, because every peer validates the gossiped entry and a typo would otherwise make this node a member nowhere. |
 | `NOONIEND_PEERS` | — | **Discovery: static seeds** — `node@host:port` or `host:port`, comma separated. One is enough; membership then self-propagates. |
 | `NOONIEND_DNS_SRV` | — | **Discovery:** domain whose `_nooniend._tcp` SRV records are seeds. |
@@ -464,11 +464,13 @@ VPN or firewall and enable mTLS — see [Security](#security).
 | `NOONIEND_TLS_CA` | — | CA that signs the peers' certificates, used to verify them in both directions. |
 | `NOONIEND_TLS_REQUIRE_CLIENT` | on | Require a client certificate (mTLS). |
 
-**Listen port.** The daemon listens on `27878`, the IANA user port the service is being registered
-for; the default was `7878` before 1.0.3. A mesh is only as reachable as its ports: a discovery seed
-carries no port and takes the **dialer's** own, so a node left on a different port is never found.
-Upgrade the nodes together, or set `NOONIEND_LISTEN` and `NOONIEND_ADVERTISE` to match while they
-are mixed.
+**Listen port.** The daemon listens on `49778`, a port **self-selected from the dynamic range**
+(49152-65535). The service name `noonien` is applied for with IANA, but no port number is assigned
+yet, so the daemon must not sit on an assignable port that is not ours: it uses one from the
+dynamic range, and the number may change when an assignment comes.
+A mesh is only as reachable as its ports: a discovery seed carries no port and takes the
+**dialer's** own, so a node left on a different port is never found. Give every node the same
+port, and set `NOONIEND_LISTEN` and `NOONIEND_ADVERTISE` to match while they are mixed.
 
 ## How it works
 

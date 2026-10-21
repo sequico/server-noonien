@@ -9,6 +9,10 @@ version and its date.
 
 ## Unreleased
 
+- **The daemon no longer listens on a port that is not ours.** The default listen port is `49778`,
+  self-selected from the dynamic range (49152-65535): the IANA reviewer held the port number
+  assignment and asked the service to run on a self-selected dynamic port until a number is
+  assigned. The service name `noonien` is still under review.
 - The README header carries the mcprush grade badge next to the Glama one, both linking to the
   server listing.
 - **Two servers on one node id no longer strand each other's writes.** An append now carries the

@@ -53,8 +53,8 @@ describe("loadGossipConfig", () => {
       /NOONIEND_ADVERTISE must be a host:port/,
     )
     expect(() => loadGossipConfig({ NOONIEND_ADVERTISE: "ai:0" })).toThrow(/host:port/)
-    expect(() => loadGossipConfig({ NOONIEND_ADVERTISE: "http://ai:27878" })).toThrow(/host:port/)
-    expect(loadGossipConfig({ NOONIEND_ADVERTISE: "ai:27878" }).advertise).toBe("ai:27878")
+    expect(() => loadGossipConfig({ NOONIEND_ADVERTISE: "http://ai:49778" })).toThrow(/host:port/)
+    expect(loadGossipConfig({ NOONIEND_ADVERTISE: "ai:49778" }).advertise).toBe("ai:49778")
   })
 
   it("refuses a hook URL that is not an http(s) URL", () => {
@@ -228,33 +228,33 @@ describe("loadGossipConfig", () => {
 
 describe("parseHostPort", () => {
   it("falls back when the value is absent", () => {
-    expect(parseHostPort(undefined, "0.0.0.0", 27878)).toEqual({ host: "0.0.0.0", port: 27878 })
+    expect(parseHostPort(undefined, "0.0.0.0", 49778)).toEqual({ host: "0.0.0.0", port: 49778 })
   })
 
   it("reads a bare port", () => {
-    expect(parseHostPort("9001", "host", 27878)).toEqual({ host: "host", port: 9001 })
+    expect(parseHostPort("9001", "host", 49778)).toEqual({ host: "host", port: 9001 })
   })
 
   it("reads a colon-prefixed port", () => {
-    expect(parseHostPort(":9001", "host", 27878)).toEqual({ host: "host", port: 9001 })
+    expect(parseHostPort(":9001", "host", 49778)).toEqual({ host: "host", port: 9001 })
   })
 
   it("reads an IPv6 bracket address", () => {
-    expect(parseHostPort("[::1]:9002", "host", 27878)).toEqual({ host: "::1", port: 9002 })
+    expect(parseHostPort("[::1]:9002", "host", 49778)).toEqual({ host: "::1", port: 9002 })
   })
 
   it("reads a bare IPv6 bracket address", () => {
-    expect(parseHostPort("[::1]", "host", 27878)).toEqual({ host: "::1", port: 27878 })
+    expect(parseHostPort("[::1]", "host", 49778)).toEqual({ host: "::1", port: 49778 })
   })
 
   it("rejects an invalid port", () => {
-    expect(() => parseHostPort("host:not-a-port", "host", 27878)).toThrow(/Invalid port/)
+    expect(() => parseHostPort("host:not-a-port", "host", 49778)).toThrow(/Invalid port/)
   })
 })
 
 describe("formatHostPort", () => {
   it("brackets an IPv6 literal and leaves a hostname alone", () => {
-    expect(formatHostPort("::1", 27878)).toBe("[::1]:27878")
-    expect(formatHostPort("host", 27878)).toBe("host:27878")
+    expect(formatHostPort("::1", 49778)).toBe("[::1]:49778")
+    expect(formatHostPort("host", 49778)).toBe("host:49778")
   })
 })

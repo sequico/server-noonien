@@ -3,7 +3,7 @@
   "name": "server-noonien",
   "display_name": "server-noonien",
   "icon": "icon.png",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Shared, serverless, conflict-free memory for AI agents — a multi-machine drop-in for the MCP memory knowledge graph.",
   "long_description": "A drop-in replacement for the official `@modelcontextprotocol/server-memory` knowledge graph (the same nine drop-in tools, plus the `update_*`, `merge_entities` and `read_conflicts` extensions) that **converges across machines** with no central server, no database and no merge conflicts. Each node keeps its own append-only shard; a companion daemon (`nooniend`) replicates the shards peer-to-peer, so several machines share one memory with no shared folder — only IP reachability over a VPN or a LAN.",
   "author": {

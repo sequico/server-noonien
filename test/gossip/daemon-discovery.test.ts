@@ -187,6 +187,31 @@ describe("discovery candidates", () => {
   })
 })
 
+describe("push on change", () => {
+  it("pushes a local write at once, without waiting for the round", async () => {
+    // The default is `NOONIEND_PUSH=true`: writing this node's shard triggers a round
+    // immediately. The interval here is an hour, so a push can only come from the
+    // watcher — the path that had no test at all.
+    const bPort = await freePort()
+    const bDirectory = await tempDirectory()
+    const b = await startDaemon("push-b", bDirectory, bPort, `127.0.0.1:${await freePort()}`)
+    const aDirectory = await tempDirectory()
+    const a = await startDaemon("push-a", aDirectory, await freePort(), `127.0.0.1:${bPort}`, {
+      NOONIEND_PUSH: "true",
+    })
+    // The startup round resolves the seed and adopts B. Poll for that without running
+    // extra rounds: a polling loop of `syncOnce` leaves one queued behind, and a queued
+    // round would push on its own and hide the watcher.
+    await until(async () => (await peerIds(a.url)).includes("push-b"))
+    await new ShardLog(new FileBackend(aDirectory), "push-a").append([
+      { type: "entity.create", name: "Pushed", entityType: "t" },
+    ])
+    await until(async () => (await shardNodes(b.url)).includes("push-a"))
+    const pushed = (await new FileBackend(bDirectory).read("push-a.jsonl")) ?? ""
+    expect(pushed).toContain("Pushed")
+  })
+})
+
 describe("split channels", () => {
   it("keeps the mesh converging when the peer set has its own channel", async () => {
     // With `NOONIEND_CHANNELS` the data exchange carries no peer set: a third node is

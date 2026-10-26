@@ -7,6 +7,11 @@ version and its date.
 
 [rp]: https://github.com/googleapis/release-please
 
+## Unreleased
+
+- **Security.** `zod` is held above the advisory on oversized constrained collections
+  (GHSA-mrhx-c7xc-m3w5), which every operation, shard line and tool input is validated with.
+
 ## 1.1.1 (2026-10-21)
 
 - **The default listen port is `49778`**, selected from the dynamic range (49152-65535). The service

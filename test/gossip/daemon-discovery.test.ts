@@ -6,6 +6,8 @@ import { rm } from "node:fs/promises"
 import { createServer } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { type GossipHandle, startGossip } from "../../src/gossip/daemon.js"
+import { ShardLog } from "../../src/store/log.js"
+import { FileBackend } from "../../src/sync/file.js"
 import { createTempDirectory } from "../support/tmp.js"
 
 const directories: string[] = []
@@ -38,6 +40,7 @@ async function startDaemon(
   directory: string,
   port: number,
   seed: string,
+  extra: NodeJS.ProcessEnv = {},
 ): Promise<GossipHandle> {
   const handle = await startGossip(
     {
@@ -51,11 +54,18 @@ async function startDaemon(
       NOONIEND_PUSH: "false",
       NOONIEND_SUSPECT_AFTER: "1",
       NOONIEND_DEAD_AFTER: "1",
+      ...extra,
     },
     { quiet: true },
   )
   handles.push(handle)
   return handle
+}
+
+/** The shard names one node serves. */
+async function shardNodes(url: string): Promise<string[]> {
+  const body = (await (await fetch(`${url}/shards`)).json()) as { shards: { node: string }[] }
+  return body.shards.map((shard) => shard.node)
 }
 
 /** The membership size from the public metrics. */
@@ -151,5 +161,98 @@ describe("discovery candidates", () => {
       await a.syncOnce()
       return (await membershipSize(a.url)) === 2
     })
+  })
+
+  it("finds a peer that appears after the first discovery, on the periodic refresh", async () => {
+    // A bare seed is only a candidate: it is probed, fails, and sits in backoff. The
+    // periodic refresh is what re-proposes it, so a node that comes up later is found
+    // without a restart — the one path that existed with no test.
+    const portB = await freePort()
+    const a = await startDaemon(
+      "late-a",
+      await tempDirectory(),
+      await freePort(),
+      `127.0.0.1:${portB}`,
+      { NOONIEND_DISCOVER_INTERVAL: "1" },
+    )
+    await a.syncOnce()
+    expect(await peerIds(a.url)).not.toContain("late-b")
+    await startDaemon("late-b", await tempDirectory(), portB, `127.0.0.1:${await freePort()}`)
+    await until(async () => {
+      // Past the refresh interval, so this round re-reads the discovery sources.
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      await a.syncOnce()
+      return (await peerIds(a.url)).includes("late-b")
+    })
+  })
+})
+
+describe("push on change", () => {
+  it("pushes a local write at once, without waiting for the round", async () => {
+    // The default is `NOONIEND_PUSH=true`: writing this node's shard triggers a round
+    // immediately. The interval here is an hour, so a push can only come from the
+    // watcher — the path that had no test at all.
+    const bPort = await freePort()
+    const bDirectory = await tempDirectory()
+    const b = await startDaemon("push-b", bDirectory, bPort, `127.0.0.1:${await freePort()}`)
+    const aDirectory = await tempDirectory()
+    const a = await startDaemon("push-a", aDirectory, await freePort(), `127.0.0.1:${bPort}`, {
+      NOONIEND_PUSH: "true",
+    })
+    // The startup round resolves the seed and adopts B. Poll for that without running
+    // extra rounds: a polling loop of `syncOnce` leaves one queued behind, and a queued
+    // round would push on its own and hide the watcher.
+    await until(async () => (await peerIds(a.url)).includes("push-b"))
+    await new ShardLog(new FileBackend(aDirectory), "push-a").append([
+      { type: "entity.create", name: "Pushed", entityType: "t" },
+    ])
+    await until(async () => (await shardNodes(b.url)).includes("push-a"))
+    const pushed = (await new FileBackend(bDirectory).read("push-a.jsonl")) ?? ""
+    expect(pushed).toContain("Pushed")
+  })
+})
+
+describe("split channels", () => {
+  it("keeps the mesh converging when the peer set has its own channel", async () => {
+    // With `NOONIEND_CHANNELS` the data exchange carries no peer set: a third node is
+    // learned from the membership channel alone, and the data still flows between the
+    // peers that channel reveals. Nothing covered this mode before.
+    const dead = await freePort()
+    const cPort = await freePort()
+    const aPort = await freePort()
+    const cDirectory = await tempDirectory()
+    await startDaemon("chan-c", cDirectory, cPort, `127.0.0.1:${dead}`, {
+      NOONIEND_CHANNELS: "true",
+    })
+    const a = await startDaemon("chan-a", await tempDirectory(), aPort, `127.0.0.1:${cPort}`, {
+      NOONIEND_CHANNELS: "true",
+    })
+    // B is seeded with A only: C can reach it through A's membership channel.
+    const b = await startDaemon(
+      "chan-b",
+      await tempDirectory(),
+      await freePort(),
+      `127.0.0.1:${aPort}`,
+      { NOONIEND_CHANNELS: "true" },
+    )
+    await until(async () => {
+      await a.syncOnce()
+      return (await peerIds(a.url)).includes("chan-c")
+    })
+    await until(async () => {
+      await b.syncOnce()
+      return (await peerIds(b.url)).includes("chan-c")
+    })
+    // C authors an operation; B, which learned C only through the channel, pulls it.
+    await new ShardLog(new FileBackend(cDirectory), "chan-c").append([
+      { type: "entity.create", name: "FromC", entityType: "t" },
+    ])
+    await until(async () => {
+      await b.syncOnce()
+      return (await shardNodes(b.url)).includes("chan-c")
+    })
+    // A successful membership exchange must not be counted as a failure.
+    const metrics = await (await fetch(`${b.url}/metrics`)).text()
+    expect(metrics).not.toMatch(/^noonien_gossip_membership_channel_failures_total/m)
   })
 })

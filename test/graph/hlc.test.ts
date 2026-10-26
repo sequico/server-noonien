@@ -58,6 +58,32 @@ describe("Hybrid Logical Clock", () => {
     expect(hlcOf(older)).toBe(legacy)
   })
 
+  it("carries the counter into the next millisecond instead of repeating a stamp", () => {
+    // A million stamps in one millisecond, or a remote stamp at the counter's ceiling,
+    // must advance the physical component: two equal stamps would leave the fold's
+    // last-writer-wins order with a tie it cannot break.
+    const clock = new Hlc()
+    const ceiling = encodeHlc(1000, 10 ** 6 - 1)
+    clock.observe(ceiling, 1000)
+    const after = clock.next(1000)
+    expect(decodeHlc(after)?.physicalMs).toBe(1001)
+    expect(after > ceiling).toBe(true)
+    const ahead = new Hlc()
+    const farCeiling = encodeHlc(2000, 10 ** 6 - 1)
+    ahead.observe(farCeiling, 1000)
+    const later = ahead.next(1000)
+    expect(decodeHlc(later)?.physicalMs).toBe(2001)
+    expect(later > farCeiling).toBe(true)
+  })
+
+  it("ignores a value that is not a stamp", () => {
+    expect(decodeHlc("nope")).toBeUndefined()
+    const clock = new Hlc()
+    const first = clock.next(1000)
+    clock.observe("nope", 1000)
+    expect(clock.next(1000) > first).toBe(true)
+  })
+
   it("orders by HLC, then node, then sequence", () => {
     const base = { v: OPERATION_VERSION, ts: T1, node: "n1", seq: 0 } as const
     const a = op({ type: "entity.create", name: "A", entityType: "t" }, { node: "n1", seq: 0 })

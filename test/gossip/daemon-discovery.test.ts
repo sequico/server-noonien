@@ -162,6 +162,29 @@ describe("discovery candidates", () => {
       return (await membershipSize(a.url)) === 2
     })
   })
+
+  it("finds a peer that appears after the first discovery, on the periodic refresh", async () => {
+    // A bare seed is only a candidate: it is probed, fails, and sits in backoff. The
+    // periodic refresh is what re-proposes it, so a node that comes up later is found
+    // without a restart — the one path that existed with no test.
+    const portB = await freePort()
+    const a = await startDaemon(
+      "late-a",
+      await tempDirectory(),
+      await freePort(),
+      `127.0.0.1:${portB}`,
+      { NOONIEND_DISCOVER_INTERVAL: "1" },
+    )
+    await a.syncOnce()
+    expect(await peerIds(a.url)).not.toContain("late-b")
+    await startDaemon("late-b", await tempDirectory(), portB, `127.0.0.1:${await freePort()}`)
+    await until(async () => {
+      // Past the refresh interval, so this round re-reads the discovery sources.
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      await a.syncOnce()
+      return (await peerIds(a.url)).includes("late-b")
+    })
+  })
 })
 
 describe("split channels", () => {

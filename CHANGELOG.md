@@ -7,7 +7,7 @@ version and its date.
 
 [rp]: https://github.com/googleapis/release-please
 
-## Unreleased
+## 1.1.2 (2026-10-26)
 
 - **Security.** `zod` is held above the advisory on oversized constrained collections
   (GHSA-mrhx-c7xc-m3w5), which every operation, shard line and tool input is validated with.

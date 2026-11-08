@@ -6,6 +6,7 @@ import { readFile, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { compactShard, importFile } from "../src/cli.js"
+import { foldOperations } from "../src/graph/fold.js"
 import { ShardLog } from "../src/store/log.js"
 import { FileBackend } from "../src/sync/file.js"
 import { shardTypes } from "./support/gossip.js"
@@ -143,11 +144,16 @@ describe("noonien import", () => {
     await new ShardLog(new FileBackend(directory), "n1").append([
       { type: "observation.delete", entityName: "Ada", content: "math" },
     ])
+    const before = foldOperations(await new ShardLog(new FileBackend(directory), "n1").read())
 
     const { imports } = await compactShard(env(directory))
     expect(imports.map(({ shard, result }) => [shard, result.dropped])).toEqual([
       ["n0-import.jsonl", 1],
     ])
     expect(await shardTypes(directory, "n0-import")).toEqual(["entity.create", "shard.compact"])
+    // What the whole pass promises: the operations go, the graph does not move.
+    expect(foldOperations(await new ShardLog(new FileBackend(directory), "n1").read())).toEqual(
+      before,
+    )
   })
 })

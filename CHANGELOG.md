@@ -9,11 +9,10 @@ version and its date.
 
 ## Unreleased
 
-- **`noonien compact` maintains every `*-import` shard in the directory, not only this node's.** An
-  import authors a shard with no daemon behind it, and a replica kept a peer's shadowed adds for
-  ever: they stayed contested in `read_conflicts` and no host could clear them. Pruning one can lose
-  nothing — an import shard only ever adds, and a tombstone is never dropped — so any node clears
-  them now, and a repeat pass still rewrites nothing.
+- **`noonien compact` maintains every `*-import` shard in the directory, not only this node's.** A
+  replica kept a peer's shadowed import adds for ever, contested in `read_conflicts` with no host
+  able to clear them; an import shard only ever adds and a tombstone is never dropped, so any node
+  can prune it — and a repeat pass still rewrites nothing.
 
 ## 1.1.2 (2026-10-26)
 

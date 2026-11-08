@@ -67,10 +67,8 @@ Properties required and tested:
   An append carries the state its sequence numbers were derived from, so a second writer on one
   node id is refused and re-derives instead of spending a sequence already spent: the two writers
   land on their own sequences rather than stranding each other's operations from every peer.
-  `noonien import` authors its own `<node>-import` shard, so it runs online too — and it is pruned
-  on each import and by `noonien compact`, which prunes **every** `*-import` shard the directory
-  holds, a replicated peer's included: such a shard only ever adds, so pruning it needs no knowledge
-  and can lose nothing, and the conflicts a one-off migration leaves behind clear from any node.
+  `noonien import` authors its own `<node>-import` shard, so it runs online too; it only ever adds, so
+  pruning it needs no knowledge and can lose nothing (see _CLI_).
 - Reads fold all shards; normal writes append only to the local shard. Reading is **incremental**:
   each shard is decoded once and cached against a cheap fingerprint (mtime + inode, a version
   counter, or an object ETag), so a read re-parses only the shards that changed and the folded graph
@@ -273,9 +271,9 @@ it serves over stdio, so the package name and the client entry are the same. The
 - `noonien compact` — maintain the local shard now: prune the shadowed operations and, when safe,
   physically delete its tombstones (the server runs the same maintenance online); where a daemon
   owns the directory it keeps the whole view and leaves the shard to the daemon. It also prunes
-  every `*-import` shard in the directory, a peer's replicated one included, which needs no peer
-  knowledge: an import shard only ever adds, so its shadowed operations are the only thing that can
-  go, and its surviving tombstones (if any) are kept.
+  every `*-import` shard in the directory, a peer's replicated one included: such a shard only ever
+  adds, so its shadowed operations are the only thing that can go (its surviving tombstones, if any,
+  are kept), and the conflicts a one-off migration leaves behind clear from any node.
 - `noonien query <text>` — search entities and print the matching subgraph.
 - `noonien help` — list the commands; `--version` prints the version.
 

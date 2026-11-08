@@ -7,7 +7,7 @@ version and its date.
 
 [rp]: https://github.com/googleapis/release-please
 
-## Unreleased
+## 1.2.0 (2026-11-08)
 
 - **`noonien compact` maintains every `*-import` shard in the directory, not only this node's.** A
   replica kept a peer's shadowed import adds for ever, contested in `read_conflicts` with no host

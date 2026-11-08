@@ -39,11 +39,11 @@ consensus, only eventual completeness.
 - Every request carries the caller's identity in three request headers, so a peer that is reached can
   mark a caller it already knows alive:
 
-  | Header | Meaning |
-  | --- | --- |
-  | `x-noonien-node` | The caller's node id (a path-safe id). |
-  | `x-noonien-address` | The caller's advertised `host:port`. |
-  | `x-noonien-version` | The caller's integer version. |
+  | Header              | Meaning                                |
+  | ------------------- | -------------------------------------- |
+  | `x-noonien-node`    | The caller's node id (a path-safe id). |
+  | `x-noonien-address` | The caller's advertised `host:port`.   |
+  | `x-noonien-version` | The caller's integer version.          |
 
   A caller that is **not** a member yet is never adopted from these headers. It is offered as a
   discovery candidate instead: the **host the request came from** with the port it announced — never
@@ -56,20 +56,20 @@ consensus, only eventual completeness.
 All routes are read-only except the operations push. Responses are `application/json` unless noted;
 the operations routes use `application/x-ndjson`.
 
-| Method | Path | Response |
-| --- | --- | --- |
-| `GET` | `/health` | Liveness: `{"status":"ok"}`. |
-| `GET` | `/info` | This node's entry (`node`, `address`, `version`), the protocol revision (`protocol`) and the advertised `capabilities`. |
-| `GET` | `/peers` | The peer set with live health: `{"peers":[{"node","address","version","health"}]}`, `health` one of `alive`, `suspect`, `dead`. |
-| `GET` | `/membership` | The peer set without health — the payload nodes gossip: `{"peers":[{"node","address","version"}]}`. |
-| `GET` | `/status` | Summary: `{"node","version","protocol","uptimeSec","shards","peers":{"total","alive","suspect","dead"}}` (peer counts exclude the local node). |
-| `GET` | `/graph` | The whole knowledge graph folded from the replicas on disk: `{"entities","relations"}`. Above 50 000 operations it answers `413` and asks for the shards, which serve the same data a page at a time. |
-| `GET` | `/shards` | Per-shard summaries: `{"shards":[{"node","count","maxSeq","generation"}]}`. |
-| `GET` | `/shards/digest` | The shard digest: `{"root","buckets":[{"index","hash","count"}]}`. With `?buckets=1,3,5`, just those buckets' summaries as `{"shards":[…]}`. |
-| `GET` | `/shards/{node}/ops?after=N` | The operations of `{node}` after sequence `N`, as NDJSON (see below). |
-| `POST` | `/shards/{node}/ops` | Append operations to `{node}`'s replica (NDJSON body); returns `{"appended","maxSeq"}`. Accepts only operations authored by `{node}`. |
-| `GET` | `/metrics` | Prometheus metrics (`text/plain; version=0.0.4`). |
-| `GET` | `/watermark` | Per-shard stable high-water mark across the contactable peers: `{"<node>": <seq>, …}`. |
+| Method | Path                         | Response                                                                                                                                                                                              |
+| ------ | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/health`                    | Liveness: `{"status":"ok"}`.                                                                                                                                                                          |
+| `GET`  | `/info`                      | This node's entry (`node`, `address`, `version`), the protocol revision (`protocol`) and the advertised `capabilities`.                                                                               |
+| `GET`  | `/peers`                     | The peer set with live health: `{"peers":[{"node","address","version","health"}]}`, `health` one of `alive`, `suspect`, `dead`.                                                                       |
+| `GET`  | `/membership`                | The peer set without health — the payload nodes gossip: `{"peers":[{"node","address","version"}]}`.                                                                                                   |
+| `GET`  | `/status`                    | Summary: `{"node","version","protocol","uptimeSec","shards","peers":{"total","alive","suspect","dead"}}` (peer counts exclude the local node).                                                        |
+| `GET`  | `/graph`                     | The whole knowledge graph folded from the replicas on disk: `{"entities","relations"}`. Above 50 000 operations it answers `413` and asks for the shards, which serve the same data a page at a time. |
+| `GET`  | `/shards`                    | Per-shard summaries: `{"shards":[{"node","count","maxSeq","generation"}]}`.                                                                                                                           |
+| `GET`  | `/shards/digest`             | The shard digest: `{"root","buckets":[{"index","hash","count"}]}`. With `?buckets=1,3,5`, just those buckets' summaries as `{"shards":[…]}`.                                                          |
+| `GET`  | `/shards/{node}/ops?after=N` | The operations of `{node}` after sequence `N`, as NDJSON (see below).                                                                                                                                 |
+| `POST` | `/shards/{node}/ops`         | Append operations to `{node}`'s replica (NDJSON body); returns `{"appended","maxSeq"}`. Accepts only operations authored by `{node}`.                                                                 |
+| `GET`  | `/metrics`                   | Prometheus metrics (`text/plain; version=0.0.4`).                                                                                                                                                     |
+| `GET`  | `/watermark`                 | Per-shard stable high-water mark across the contactable peers: `{"<node>": <seq>, …}`.                                                                                                                |
 
 An unknown path answers `404`, an unsupported method `405`, a revoked caller or an unauthorized push
 (including a push for the local node's own shard) `403`, a malformed node id or bucket list `400`, an
@@ -82,28 +82,28 @@ never echoes server-side state.
 The operations routes carry an **append-only operation log** as NDJSON: one JSON object per line, no
 trailing comma, no wrapper array. Each operation is an envelope plus a type-specific payload:
 
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `v` | integer | Envelope revision (currently `1`). |
-| `id` | string | Operation identity, exactly `"<ts>|<node>|<seq>"`; deduplicates a shard read twice. |
-| `ts` | string | Canonical UTC ISO-8601 timestamp with milliseconds (as `Date.toISOString()`). |
-| `hlc` | string, optional | Hybrid-logical-clock stamp; omitted by operations written before it existed. Orders operations ahead of legacy timestamps. |
-| `node` | string | The authoring node id. |
-| `seq` | integer | The authoring node's sequence number (per-shard, monotonic). |
-| `type` | string | One of the operation types below. |
-| … | | The payload fields of that type. |
+| Field  | Type             | Meaning                                                                                                                    |
+| ------ | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `v`    | integer          | Envelope revision (currently `1`).                                                                                         |
+| `id`   | string           | Operation identity, exactly `"<ts>                                                                                         | <node> | <seq>"`; deduplicates a shard read twice. |
+| `ts`   | string           | Canonical UTC ISO-8601 timestamp with milliseconds (as `Date.toISOString()`).                                              |
+| `hlc`  | string, optional | Hybrid-logical-clock stamp; omitted by operations written before it existed. Orders operations ahead of legacy timestamps. |
+| `node` | string           | The authoring node id.                                                                                                     |
+| `seq`  | integer          | The authoring node's sequence number (per-shard, monotonic).                                                               |
+| `type` | string           | One of the operation types below.                                                                                          |
+| …      |                  | The payload fields of that type.                                                                                           |
 
 Operation types:
 
-| `type` | Payload | Effect |
-| --- | --- | --- |
-| `entity.create` | `name`, `entityType` | Adds an entity. |
-| `entity.delete` | `name` | Tombstones an entity. |
-| `observation.add` | `entityName`, `content`, `slot?` | Adds an observation occurrence. |
-| `observation.delete` | `entityName`, `content` | Tombstones all occurrences of a content. |
-| `relation.add` | `from`, `to`, `relationType` | Adds a relation. |
-| `relation.delete` | `from`, `to`, `relationType` | Tombstones a relation. |
-| `shard.compact` | `generation` | Per-shard metadata written on compaction; **ignored by the fold**. |
+| `type`               | Payload                          | Effect                                                             |
+| -------------------- | -------------------------------- | ------------------------------------------------------------------ |
+| `entity.create`      | `name`, `entityType`             | Adds an entity.                                                    |
+| `entity.delete`      | `name`                           | Tombstones an entity.                                              |
+| `observation.add`    | `entityName`, `content`, `slot?` | Adds an observation occurrence.                                    |
+| `observation.delete` | `entityName`, `content`          | Tombstones all occurrences of a content.                           |
+| `relation.add`       | `from`, `to`, `relationType`     | Adds a relation.                                                   |
+| `relation.delete`    | `from`, `to`, `relationType`     | Tombstones a relation.                                             |
+| `shard.compact`      | `generation`                     | Per-shard metadata written on compaction; **ignored by the fold**. |
 
 The total order used to fold (last-writer-wins) is `(hlc, node, seq)`, with `ts` substituted for a
 missing `hlc`.
@@ -138,18 +138,18 @@ last sequence received, so a shard larger than one response is pulled page by pa
 
 ## Limits
 
-| Limit | Value |
-| --- | --- |
-| Pushed request body | 64 MiB (`64 × 1024 × 1024` bytes) |
-| Single operation | 64 MiB |
-| Push batch (client) | 8 MiB |
-| Response the client buffers | 64 MiB |
-| Entries in one list (`/membership`, `/shards`) | 10 000 |
-| Capabilities in `/info` | 64 |
-| Digest buckets (fixed) | 16 |
-| Server request timeout | 60 s |
-| Server headers timeout | 20 s |
-| Client request timeout | 10 s |
+| Limit                                          | Value                             |
+| ---------------------------------------------- | --------------------------------- |
+| Pushed request body                            | 64 MiB (`64 × 1024 × 1024` bytes) |
+| Single operation                               | 64 MiB                            |
+| Push batch (client)                            | 8 MiB                             |
+| Response the client buffers                    | 64 MiB                            |
+| Entries in one list (`/membership`, `/shards`) | 10 000                            |
+| Capabilities in `/info`                        | 64                                |
+| Digest buckets (fixed)                         | 16                                |
+| Server request timeout                         | 60 s                              |
+| Server headers timeout                         | 20 s                              |
+| Client request timeout                         | 10 s                              |
 
 The list, capability and bucket caps are fixed constants of the wire contract: a digest with a
 different bucket count is rejected rather than silently reconciled against the wrong buckets, and a

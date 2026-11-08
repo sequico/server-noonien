@@ -146,7 +146,7 @@ jobs:
 
   registry:
     name: publish to the MCP Registry
-    needs: [release, publish]
+    needs: [ release, publish ]
     if: needs.release.outputs.release_created == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 10

@@ -26,14 +26,14 @@ and the conflict copies it may leave — noonien neither verifies nor retransmit
 
 Three assumptions the collection gate makes explicit, and does not defend against:
 
-- **A member is benign.** A client certificate proves *which* member is talking to the daemon, not
+- **A member is benign.** A client certificate proves _which_ member is talking to the daemon, not
   that its reports are true. The gate takes a member's advertised frontier (`/shards`) and the peer
   set it gossips at face value; a member that understates its frontier, or hides a peer from the
   gossip, can cause a deletion to be collected while an operation that should beat it still exists.
 - **The mesh is the only path.** A node that has left must not keep receiving operations by another
   route (a shared `file`/`s3` area pointed at the same directory, a backup restore, a second mesh).
   A node bridging two meshes must belong to both, or be departed.
-- **Coincident independent naming (the gate's causal scope).** The guarantee is *no causal revival*:
+- **Coincident independent naming (the gate's causal scope).** The guarantee is _no causal revival_:
   a tombstone is kept while any replica that had **folded** the element could re-deliver a competing
   operation — a delete needs the element, an add needs only the identities it depends on (nothing
   for an entity, the entity for an observation, both endpoints for a relation). A member that never

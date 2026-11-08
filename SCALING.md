@@ -13,11 +13,11 @@ and, at or above the digest threshold and with a peer that advertises the capabi
 fixed-size digest instead of the full shard list, so a node's links per round are O(k) and its
 per-round metadata O(k) rather than O(N).
 
-| N | Links per node | Read | Per-node storage / RAM |
-| --- | --- | --- | --- |
-| 100 | k | O(all ops) | all ops |
-| 1,000 | k | heavy on every change | all ops |
-| 10,000 | k | not viable | not viable |
+| N      | Links per node | Read                  | Per-node storage / RAM |
+| ------ | -------------- | --------------------- | ---------------------- |
+| 100    | k              | O(all ops)            | all ops                |
+| 1,000  | k              | heavy on every change | all ops                |
+| 10,000 | k              | not viable            | not viable             |
 
 The bottlenecks at these sizes are (a) **full replication**: every node holds every shard, so
 storage and RAM are O(N·ops) per node — and the daemon's decode cache is capped at the store's own
@@ -36,9 +36,9 @@ through `read_graph` right after a write — the expensive case, since the fold 
 operation set and a write is what invalidates it. Median of five, Node 24:
 
 | Operations on disk | Shard file | Fold of the log | `read_graph` after a write | Resident RAM after GC |
-| --- | --- | --- | --- | --- |
-| 20 000 | 8.1 MB | 67 ms | 103 ms | 298 MB |
-| 50 000 | 20.2 MB | 265 ms | 415 ms | 417 MB |
+| ------------------ | ---------- | --------------- | -------------------------- | --------------------- |
+| 20 000             | 8.1 MB     | 67 ms           | 103 ms                     | 298 MB                |
+| 50 000             | 20.2 MB    | 265 ms          | 415 ms                     | 417 MB                |
 
 Reading is **linear in the whole log**, not in the page asked for: the fold walks every operation the
 node holds, and RAM is the whole decoded log, roughly ten times the file. That is the design's
@@ -60,23 +60,23 @@ the change that removes it. What follows from it today:
 The plan builds on these elements of the current design. The concrete values are given here so the
 document stands on its own; each links to its full description.
 
-| Prerequisite | Concrete value | Documented in |
-| --- | --- | --- |
-| HLC ordering | order `(hlc, node, seq)`; stamp `PPPPPPPPPPPPPPP:CCCCCC` (15-digit ms : 6-digit counter); a remote stamp is clamped to at most 60 s of skew | README *How it works* · PLAN *Convergence model (CRDT)* |
-| Incremental reads with a memoized fold | a shard is re-decoded only when its fingerprint moves | README *How it works* · PLAN *Storage layout* |
-| Online cross-shard compaction | a compare-and-swap rewrite, retried on a lost race | README *Compaction* · PLAN *Storage layout* |
-| Per-shard generation and durable high-water mark | the `shard.compact` meta carries `generation` and the durable `seq` | README *Compaction* · PLAN *Storage layout* |
-| Snapshot replication | a peer replaces a stale replica when its generation is behind | README *Compaction* · PLAN *Gossip sync — design decisions* |
-| `/metrics` and per-shard `/watermark` | `/watermark` is the minimum high-water mark across contactable peers | README *Share across machines* |
-| Membership TTL, verified membership, revocation | a dead peer is forgotten after `NOONIEND_MEMBERSHIP_TTL` (default 604800 s); `NOONIEND_REVOKED` refuses a node id | README *Share across machines* · PLAN *Gossip sync — design decisions* |
-| Bounded retention of silent peers | after `NOONIEND_FORGET_AFTER` (default 15552000 s — 180 days; `0` = never) a peer is retired into a merged retired frontier, or a durable blanket when it is not accounted for | README *Deletion and collection* · PLAN *Gossip sync — design decisions* |
-| Fanout cap with a seeded sampler and opt-in relays | `NOONIEND_FANOUT` (0 = every peer; `> 0` excludes `NOONIEND_GC`, which needs a stable round over the live set); `NOONIEND_RELAY` pins a super-peer | README *Share across machines* · PLAN *Gossip sync — design decisions* |
-| Fixed-size shard digest behind the additive `digest` capability | 16 buckets; used at or above `NOONIEND_DIGEST_MIN_SHARDS` (default 32, `0` = whenever supported) | README *Share across machines* · PLAN *Gossip sync — design decisions* |
-| Membership channel split | `NOONIEND_CHANNELS` moves membership onto its own channel | README *Share across machines* · PLAN *Gossip sync — design decisions* |
+| Prerequisite                                                    | Concrete value                                                                                                                                                                 | Documented in                                                            |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| HLC ordering                                                    | order `(hlc, node, seq)`; stamp `PPPPPPPPPPPPPPP:CCCCCC` (15-digit ms : 6-digit counter); a remote stamp is clamped to at most 60 s of skew                                    | README _How it works_ · PLAN _Convergence model (CRDT)_                  |
+| Incremental reads with a memoized fold                          | a shard is re-decoded only when its fingerprint moves                                                                                                                          | README _How it works_ · PLAN _Storage layout_                            |
+| Online cross-shard compaction                                   | a compare-and-swap rewrite, retried on a lost race                                                                                                                             | README _Compaction_ · PLAN _Storage layout_                              |
+| Per-shard generation and durable high-water mark                | the `shard.compact` meta carries `generation` and the durable `seq`                                                                                                            | README _Compaction_ · PLAN _Storage layout_                              |
+| Snapshot replication                                            | a peer replaces a stale replica when its generation is behind                                                                                                                  | README _Compaction_ · PLAN _Gossip sync — design decisions_              |
+| `/metrics` and per-shard `/watermark`                           | `/watermark` is the minimum high-water mark across contactable peers                                                                                                           | README _Share across machines_                                           |
+| Membership TTL, verified membership, revocation                 | a dead peer is forgotten after `NOONIEND_MEMBERSHIP_TTL` (default 604800 s); `NOONIEND_REVOKED` refuses a node id                                                              | README _Share across machines_ · PLAN _Gossip sync — design decisions_   |
+| Bounded retention of silent peers                               | after `NOONIEND_FORGET_AFTER` (default 15552000 s — 180 days; `0` = never) a peer is retired into a merged retired frontier, or a durable blanket when it is not accounted for | README _Deletion and collection_ · PLAN _Gossip sync — design decisions_ |
+| Fanout cap with a seeded sampler and opt-in relays              | `NOONIEND_FANOUT` (0 = every peer; `> 0` excludes `NOONIEND_GC`, which needs a stable round over the live set); `NOONIEND_RELAY` pins a super-peer                             | README _Share across machines_ · PLAN _Gossip sync — design decisions_   |
+| Fixed-size shard digest behind the additive `digest` capability | 16 buckets; used at or above `NOONIEND_DIGEST_MIN_SHARDS` (default 32, `0` = whenever supported)                                                                               | README _Share across machines_ · PLAN _Gossip sync — design decisions_   |
+| Membership channel split                                        | `NOONIEND_CHANNELS` moves membership onto its own channel                                                                                                                      | README _Share across machines_ · PLAN _Gossip sync — design decisions_   |
 
 ## Partial replication (1,000–10,000)
 
-Full replication on every node stops being viable. It changes *where* data lives, not the CRDT:
+Full replication on every node stops being viable. It changes _where_ data lives, not the CRDT:
 
 - **Replica sets by consistent hashing**: each shard is placed on R nodes (R ≈ 3); a node holds its
   own shard plus a bounded subset. Storage becomes N·ops·R instead of N·ops·N.
@@ -90,7 +90,7 @@ Full replication on every node stops being viable. It changes *where* data lives
 
 ## Tombstone collection at scale
 
-Tombstone collection itself is delivered for a full mesh (see README *Deletion and collection*):
+Tombstone collection itself is delivered for a full mesh (see README _Deletion and collection_):
 each node prunes the operations a later one shadows and drops a surviving tombstone once no peer off
 the mesh could causally contest its element — a peer's durable knowledge frontier must be a subset
 of what this node holds (it holds nothing this node lacks) and must cover no operation of the
@@ -99,7 +99,7 @@ element (only a peer that folded it is a possible competitor). The metadata that
 author, or a durable blanket, so a full mesh does not grow its durable state without limit. It needs
 a **stable round over the live set** (every still-reachable retained peer exchanged with, none
 holding anything this node lacks) — which is the liveness a fanout cap would remove. Soundness needs
-every replica that *could* hold the element to be known, which the full membership gives — and that
+every replica that _could_ hold the element to be known, which the full membership gives — and that
 is exactly what does not scale: with partial replication a node does not know which peers hold the
 element, so the frontier must come from the **placement model** (replica sets plus node-departure
 finalization) instead of the whole membership. Until then the island floor stays one operation per

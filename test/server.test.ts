@@ -51,7 +51,7 @@ async function readmeToolNames(): Promise<string[]> {
   const text = await readFile(new URL("../README.md", import.meta.url), "utf8")
   const section = text.slice(text.indexOf("## Tools"), text.indexOf("## Drop-in compatibility"))
   const names: string[] = []
-  for (const match of section.matchAll(/^\| `([a-z_]+)` \|/gm)) {
+  for (const match of section.matchAll(/^\| `([a-z_]+)`\s*\|/gm)) {
     if (match[1] !== undefined) {
       names.push(match[1])
     }

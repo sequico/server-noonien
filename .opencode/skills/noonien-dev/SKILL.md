@@ -1,4 +1,5 @@
 ---
+
 name: server-noonien development description: How to work on the server-noonien repository — layout,
 commands, CRDT rules and gates. Use when editing, adding tools, or reviewing code in this project.
 ---

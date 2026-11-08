@@ -12,13 +12,13 @@ updates:
       include: "scope"
     groups:
       npm-minor-patch:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
+        patterns: [ "*" ]
+        update-types: [ "minor", "patch" ]
     ignore:
       # Node runs on the LTS major only; bump @types/node by hand when a new
       # LTS lands, so non-LTS major versions are never proposed.
       - dependency-name: "@types/node"
-        update-types: ["version-update:semver-major"]
+        update-types: [ "version-update:semver-major" ]
 
   - package-ecosystem: github-actions
     directory: /
@@ -31,4 +31,4 @@ updates:
       prefix: "ci"
     groups:
       github-actions:
-        patterns: ["*"]
+        patterns: [ "*" ]

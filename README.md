@@ -57,8 +57,8 @@ Agent memory today is local, and the official memory server is a single JSONL fi
 mutation reads and rewrites in full. That breaks the moment you have more than one machine:
 
 - **It lives on one host.** Switch machine and your agent has forgotten everything.
-- **Sharing it over a synced folder loses writes.** The server serializes mutations *in-process
-  only*: two hosts each load the whole graph, mutate their own copy and write it back, so the last
+- **Sharing it over a synced folder loses writes.** The server serializes mutations _in-process
+  only_: two hosts each load the whole graph, mutate their own copy and write it back, so the last
   write silently discards the other's — and the sync tool forks the file into conflict copies
   instead of merging it.
 - **The alternatives want a server, a database or a cloud.** The mainstream "shared memory" products
@@ -91,18 +91,18 @@ tool surface:
 
 `server-noonien` vs the official memory server vs hosted memory services:
 
-| | `server-noonien` | Official `server-memory` | Hosted memory services |
-| --- | --- | --- | --- |
-| Multi-machine | Yes — per-node shards, one graph | No — one local file | Yes, via the service |
-| Sharing a synced folder | Safe — append-only, conflict-free | Unsafe — whole-file read-modify-write | N/A |
-| Needs a server / database | No | No | Yes |
-| Needs a cloud account | No | No | Yes |
-| Works offline | Yes (`file` backend) | Yes | No |
-| Storage | Folder or S3-compatible bucket, your choice | One JSONL file | Their cloud |
-| Drop-in for the official tools | Yes — same nine, plus extension tools | — | No |
-| Migration | `noonien import memory.jsonl` | — | Export/import dance |
-| Model | Explicit knowledge graph | Explicit knowledge graph | Often vector/semantic |
-| License | MPL-2.0 | MIT | Proprietary |
+|                                | `server-noonien`                            | Official `server-memory`              | Hosted memory services |
+| ------------------------------ | ------------------------------------------- | ------------------------------------- | ---------------------- |
+| Multi-machine                  | Yes — per-node shards, one graph            | No — one local file                   | Yes, via the service   |
+| Sharing a synced folder        | Safe — append-only, conflict-free           | Unsafe — whole-file read-modify-write | N/A                    |
+| Needs a server / database      | No                                          | No                                    | Yes                    |
+| Needs a cloud account          | No                                          | No                                    | Yes                    |
+| Works offline                  | Yes (`file` backend)                        | Yes                                   | No                     |
+| Storage                        | Folder or S3-compatible bucket, your choice | One JSONL file                        | Their cloud            |
+| Drop-in for the official tools | Yes — same nine, plus extension tools       | —                                     | No                     |
+| Migration                      | `noonien import memory.jsonl`               | —                                     | Export/import dance    |
+| Model                          | Explicit knowledge graph                    | Explicit knowledge graph              | Often vector/semantic  |
+| License                        | MPL-2.0                                     | MIT                                   | Proprietary            |
 
 **Hosted** is a category, not a product: it covers services that host your memory for you.
 `server-noonien` is the local-first opposite — you own the storage and there is no account.
@@ -123,11 +123,11 @@ The `s3` backend's `@aws-sdk/client-s3` is an **optional** dependency, loaded on
 `NOONIEN_BACKEND=s3` selects it. `npm install -g server-noonien --omit=optional` skips it when you
 never use `s3`.
 
-| Command | Role | How it runs |
-| --- | --- | --- |
-| **`server-noonien`** | the MCP memory server | short-lived, **spawned by the MCP client** over stdio |
-| **`noonien`** | the maintenance CLI | **one-shot**, run by hand |
-| **`nooniend`** | the peer-to-peer replication daemon | **long-lived**, one per machine |
+| Command              | Role                                | How it runs                                           |
+| -------------------- | ----------------------------------- | ----------------------------------------------------- |
+| **`server-noonien`** | the MCP memory server               | short-lived, **spawned by the MCP client** over stdio |
+| **`noonien`**        | the maintenance CLI                 | **one-shot**, run by hand                             |
+| **`nooniend`**       | the peer-to-peer replication daemon | **long-lived**, one per machine                       |
 
 Only `server-noonien` matches the package name, so it is the only command `npx` can run by package
 name. Run the other two with `--package`, or from the global install above:
@@ -183,15 +183,15 @@ you can replace the `memory` server entry with `server-noonien` and change nothi
 
 ### `noonien` — the maintenance CLI
 
-| Command | Does |
-| --- | --- |
-| `noonien serve` | run the MCP memory server over stdio (the same as `server-noonien`) |
-| `noonien import <file>` | import an official `server-memory` JSONL file (writes its own `<node>-import` shard, so it runs online) |
-| `noonien export` | print the folded knowledge graph as JSON |
-| `noonien merge` | fold every shard and report the merged state |
-| `noonien compact` | maintain this node's shard now: prune shadowed operations and, only where it is safe, physically delete its tombstones — the same rule the server applies (`NOONIEN_GC`; with a daemon that owns the directory it keeps the whole view and leaves the shard to the daemon) — and report why when it keeps them |
-| `noonien query <text>` | search entities and print the matching subgraph |
-| `noonien help` | list the commands; `noonien --version` prints the version |
+| Command                 | Does                                                                                                                                                                                                                                                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `noonien serve`         | run the MCP memory server over stdio (the same as `server-noonien`)                                                                                                                                                                                                                                            |
+| `noonien import <file>` | import an official `server-memory` JSONL file (writes its own `<node>-import` shard, so it runs online)                                                                                                                                                                                                        |
+| `noonien export`        | print the folded knowledge graph as JSON                                                                                                                                                                                                                                                                       |
+| `noonien merge`         | fold every shard and report the merged state                                                                                                                                                                                                                                                                   |
+| `noonien compact`       | maintain this node's shard now: prune shadowed operations and, only where it is safe, physically delete its tombstones — the same rule the server applies (`NOONIEN_GC`; with a daemon that owns the directory it keeps the whole view and leaves the shard to the daemon) — and report why when it keeps them |
+| `noonien query <text>`  | search entities and print the matching subgraph                                                                                                                                                                                                                                                                |
+| `noonien help`          | list the commands; `noonien --version` prints the version                                                                                                                                                                                                                                                      |
 
 ### `nooniend` — the daemon
 
@@ -272,7 +272,7 @@ How it behaves:
   sends becomes membership, and its id is never taken on trust. It is offered as a discovery candidate
   instead — the host the request came from, the port it announces — and the daemon confirms it on
   `/info`, exactly like a Tailscale or DNS candidate. That is how a statically-seeded joiner is
-  discovered by the seeds it reached, within a round, and why an address announced for a *different*
+  discovered by the seeds it reached, within a round, and why an address announced for a _different_
   host is never even probed. A node's own entry is authoritative; an address that serves a different
   node is dropped.
 - **Wire and security.** A small HTTP/JSON service bound to `NOONIEND_LISTEN` (the full wire contract
@@ -325,7 +325,7 @@ time.
 
 The `file` and `s3` backends converge through a **shared area** that already exists and is
 replicated outside noonien — a folder or a bucket every node can reach. Point every node at the
-*same* area and each node's shard reaches the others:
+_same_ area and each node's shard reaches the others:
 
 ```sh
 NOONIEN_BACKEND=file NOONIEN_DIR=/srv/noonien-shared NOONIEN_NODE_ID=ai server-noonien
@@ -340,7 +340,7 @@ NOONIEN_BACKEND=s3 NOONIEN_S3_BUCKET=my-bucket NOONIEN_NODE_ID=ai server-noonien
   rather than a failed write; uses
   `@aws-sdk/client-s3` (an optional dependency, loaded only when selected). Conditional writes need
   a store that honours `If-Match`/`If-None-Match` on `PutObject` (AWS S3, Cloudflare R2, MinIO do);
-  a store that ignores them is not supported, and a conditional *write* carrying an ETag the store
+  a store that ignores them is not supported, and a conditional _write_ carrying an ETag the store
   cannot use — none, or a multipart one — is refused rather than guarded by a token that can never
   match. Reading is not conditional: a shard object with a multipart ETag reads and stats normally.
   An object store has no append, so **every
@@ -370,13 +370,13 @@ MCP server, the CLI and the daemon otherwise have their own variables — `NOONI
 
 Used by every command.
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `NOONIEN_NODE_ID` | hostname | This node's shard name — the identity the MCP server writes under and the daemon replicates. Must be **unique per machine** and written by a **single server at a time**. |
-| `NOONIEN_DIR` | `~/.noonien` | Directory holding this machine's shards: the `file` backend's store and the daemon's replica store. A leading `~` is expanded. |
+| Variable          | Default      | Meaning                                                                                                                                                                   |
+| ----------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOONIEN_NODE_ID` | hostname     | This node's shard name — the identity the MCP server writes under and the daemon replicates. Must be **unique per machine** and written by a **single server at a time**. |
+| `NOONIEN_DIR`     | `~/.noonien` | Directory holding this machine's shards: the `file` backend's store and the daemon's replica store. A leading `~` is expanded.                                            |
 
 These two are **local to each machine**, not a shared area: the MCP server and the daemon share the
-same directory *on the same host*, and every machine keeps its **own** copy of every shard.
+same directory _on the same host_, and every machine keeps its **own** copy of every shard.
 Peer-to-peer sync with `nooniend` needs **no shared folder or bucket**; a shared area is only the
 alternative transport for `file`/`s3`.
 
@@ -393,16 +393,16 @@ loudly** on. A unique node id is still a requirement, not something the tool can
 
 Used by the MCP server (and the `noonien` CLI, which reads and writes the same shards).
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `NOONIEN_BACKEND` | `file` | `file`, `memory` or `s3`. |
-| `NOONIEN_S3_BUCKET` | — | Bucket (required for the s3 backend). |
-| `NOONIEN_S3_PREFIX` | `""` | Key prefix all shard objects live under. |
-| `NOONIEN_S3_REGION` | `us-east-1` | Region passed to the S3 client. |
-| `NOONIEN_S3_ENDPOINT` | — | Custom endpoint for MinIO / R2 / Contabo and similar. |
-| `NOONIEN_S3_FORCE_PATH_STYLE` | on when an endpoint is set | Path-style requests. |
-| `NOONIEN_COMPACT_AFTER` | `1000` | Compact the local shard online after this many appended operations (`0` disables). |
-| `NOONIEN_GC` | off | Delete tombstones **without a daemon**: only where this node is the directory's only writer — a promise nothing in the directory can prove. Where a daemon owns the directory (it announces itself with its knowledge file from startup) it has no effect: the daemon collects. |
+| Variable                      | Default                    | Meaning                                                                                                                                                                                                                                                                         |
+| ----------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOONIEN_BACKEND`             | `file`                     | `file`, `memory` or `s3`.                                                                                                                                                                                                                                                       |
+| `NOONIEN_S3_BUCKET`           | —                          | Bucket (required for the s3 backend).                                                                                                                                                                                                                                           |
+| `NOONIEN_S3_PREFIX`           | `""`                       | Key prefix all shard objects live under.                                                                                                                                                                                                                                        |
+| `NOONIEN_S3_REGION`           | `us-east-1`                | Region passed to the S3 client.                                                                                                                                                                                                                                                 |
+| `NOONIEN_S3_ENDPOINT`         | —                          | Custom endpoint for MinIO / R2 / Contabo and similar.                                                                                                                                                                                                                           |
+| `NOONIEN_S3_FORCE_PATH_STYLE` | on when an endpoint is set | Path-style requests.                                                                                                                                                                                                                                                            |
+| `NOONIEN_COMPACT_AFTER`       | `1000`                     | Compact the local shard online after this many appended operations (`0` disables).                                                                                                                                                                                              |
+| `NOONIEN_GC`                  | off                        | Delete tombstones **without a daemon**: only where this node is the directory's only writer — a promise nothing in the directory can prove. Where a daemon owns the directory (it announces itself with its knowledge file from startup) it has no effect: the daemon collects. |
 
 `NOONIEN_GC` (server, default off) and the daemon's `NOONIEND_GC` (default on) are different
 switches; with the `memory` backend nothing is shared, so the server collects regardless of
@@ -437,32 +437,32 @@ Used by the daemon only. It needs **at least one discovery source** — `NOONIEN
 `NOONIEND_DNS_SRV` or `NOONIEND_PEERS` — to reach the mesh; the rest is optional. Run it behind a
 VPN or firewall and enable mTLS — see [Security](#security).
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `NOONIEND_LISTEN` | `0.0.0.0:49778` | `host:port` the gossip service binds. |
-| `NOONIEND_ADVERTISE` | the listen host (hostname on a wildcard) | **Optional.** `host:port` this node advertises to peers; set it only when the default does not resolve from the others. A value that is not a `host:port` is refused at startup, because every peer validates the gossiped entry and a typo would otherwise make this node a member nowhere. |
-| `NOONIEND_PEERS` | — | **Discovery: static seeds** — `node@host:port` or `host:port`, comma separated. One is enough; membership then self-propagates. |
-| `NOONIEND_DNS_SRV` | — | **Discovery:** domain whose `_nooniend._tcp` SRV records are seeds. |
-| `NOONIEND_TAILSCALE` | off | **Discovery:** derive candidate addresses from `tailscale status` (a peer joins once it answers `/info`). |
-| `NOONIEND_DISCOVER_INTERVAL` | `300` | Seconds between discovery refreshes; `0` reads the sources once at startup. A refresh only adds candidates. |
-| `NOONIEND_INTERVAL` | `30` | Anti-entropy period, seconds. |
-| `NOONIEND_PUSH` | on | Reconcile as soon as the local shard changes. |
-| `NOONIEND_FANOUT` | `0` | Peers contacted per round; `0` is every reachable peer. **A cap excludes `NOONIEND_GC`**: a reachable peer the round did not sample suspends collection, so the daemon refuses the two together. |
-| `NOONIEND_DIGEST_MIN_SHARDS` | `32` | Shard count at or above which the digest replaces the full list (`0` = whenever supported). |
-| `NOONIEND_CHANNELS` | off | Gossip membership on its own channel instead of piggybacking it on every exchange. |
-| `NOONIEND_RELAY` | — | Comma-separated node ids always sampled (relays / super-peers). |
-| `NOONIEND_GC` | on | Collect the authored shard: prune the shadowed operations (keeping the operation a peer off the mesh could still have folded as the gate's evidence) and drop a tombstone once no peer off the mesh that folded its element could contest it — the peer's knowledge frontier is a subset of what this node holds and covers no operation of the element (physical deletion). |
-| `NOONIEND_FORGET_AFTER` | `15552000` (180 days) | Seconds of silence after which a peer is **retired**: its protection becomes durable (a merged threshold, or a blanket when it holds operations this node lacks) and its live record is dropped, so the metadata collection depends on stays bounded. `0` never retires. |
-| `NOONIEND_SUSPECT_AFTER` | `3` | Failed exchanges before a peer is marked suspect. |
-| `NOONIEND_DEAD_AFTER` | `6` | Failed exchanges before a peer is marked dead. |
-| `NOONIEND_DEAD_RETRY` | `300` | Seconds a dead peer is left alone before it is probed again. |
-| `NOONIEND_MEMBERSHIP_TTL` | `604800` | Seconds a dead peer is kept before it is forgotten. |
-| `NOONIEND_HOOK_URL` | — | `http(s)` URL the daemon POSTs `{ node, watermark }` to when the stable watermark advances (a peer wrote something); best effort, a hook that is down is a warning, never a failed round. |
-| `NOONIEND_REVOKED` | — | Comma-separated node ids the daemon never syncs with and refuses to accept. |
-| `NOONIEND_DEPARTED` | — | Comma-separated node ids explicitly gone: like `NOONIEND_REVOKED` but their replica is also discarded and they stop blocking collection. |
-| `NOONIEND_TLS_CERT` / `NOONIEND_TLS_KEY` | — | Serve TLS with this certificate and key. |
-| `NOONIEND_TLS_CA` | — | CA that signs the peers' certificates, used to verify them in both directions. |
-| `NOONIEND_TLS_REQUIRE_CLIENT` | on | Require a client certificate (mTLS). |
+| Variable                                 | Default                                  | Meaning                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOONIEND_LISTEN`                        | `0.0.0.0:49778`                          | `host:port` the gossip service binds.                                                                                                                                                                                                                                                                                                                                        |
+| `NOONIEND_ADVERTISE`                     | the listen host (hostname on a wildcard) | **Optional.** `host:port` this node advertises to peers; set it only when the default does not resolve from the others. A value that is not a `host:port` is refused at startup, because every peer validates the gossiped entry and a typo would otherwise make this node a member nowhere.                                                                                 |
+| `NOONIEND_PEERS`                         | —                                        | **Discovery: static seeds** — `node@host:port` or `host:port`, comma separated. One is enough; membership then self-propagates.                                                                                                                                                                                                                                              |
+| `NOONIEND_DNS_SRV`                       | —                                        | **Discovery:** domain whose `_nooniend._tcp` SRV records are seeds.                                                                                                                                                                                                                                                                                                          |
+| `NOONIEND_TAILSCALE`                     | off                                      | **Discovery:** derive candidate addresses from `tailscale status` (a peer joins once it answers `/info`).                                                                                                                                                                                                                                                                    |
+| `NOONIEND_DISCOVER_INTERVAL`             | `300`                                    | Seconds between discovery refreshes; `0` reads the sources once at startup. A refresh only adds candidates.                                                                                                                                                                                                                                                                  |
+| `NOONIEND_INTERVAL`                      | `30`                                     | Anti-entropy period, seconds.                                                                                                                                                                                                                                                                                                                                                |
+| `NOONIEND_PUSH`                          | on                                       | Reconcile as soon as the local shard changes.                                                                                                                                                                                                                                                                                                                                |
+| `NOONIEND_FANOUT`                        | `0`                                      | Peers contacted per round; `0` is every reachable peer. **A cap excludes `NOONIEND_GC`**: a reachable peer the round did not sample suspends collection, so the daemon refuses the two together.                                                                                                                                                                             |
+| `NOONIEND_DIGEST_MIN_SHARDS`             | `32`                                     | Shard count at or above which the digest replaces the full list (`0` = whenever supported).                                                                                                                                                                                                                                                                                  |
+| `NOONIEND_CHANNELS`                      | off                                      | Gossip membership on its own channel instead of piggybacking it on every exchange.                                                                                                                                                                                                                                                                                           |
+| `NOONIEND_RELAY`                         | —                                        | Comma-separated node ids always sampled (relays / super-peers).                                                                                                                                                                                                                                                                                                              |
+| `NOONIEND_GC`                            | on                                       | Collect the authored shard: prune the shadowed operations (keeping the operation a peer off the mesh could still have folded as the gate's evidence) and drop a tombstone once no peer off the mesh that folded its element could contest it — the peer's knowledge frontier is a subset of what this node holds and covers no operation of the element (physical deletion). |
+| `NOONIEND_FORGET_AFTER`                  | `15552000` (180 days)                    | Seconds of silence after which a peer is **retired**: its protection becomes durable (a merged threshold, or a blanket when it holds operations this node lacks) and its live record is dropped, so the metadata collection depends on stays bounded. `0` never retires.                                                                                                     |
+| `NOONIEND_SUSPECT_AFTER`                 | `3`                                      | Failed exchanges before a peer is marked suspect.                                                                                                                                                                                                                                                                                                                            |
+| `NOONIEND_DEAD_AFTER`                    | `6`                                      | Failed exchanges before a peer is marked dead.                                                                                                                                                                                                                                                                                                                               |
+| `NOONIEND_DEAD_RETRY`                    | `300`                                    | Seconds a dead peer is left alone before it is probed again.                                                                                                                                                                                                                                                                                                                 |
+| `NOONIEND_MEMBERSHIP_TTL`                | `604800`                                 | Seconds a dead peer is kept before it is forgotten.                                                                                                                                                                                                                                                                                                                          |
+| `NOONIEND_HOOK_URL`                      | —                                        | `http(s)` URL the daemon POSTs `{ node, watermark }` to when the stable watermark advances (a peer wrote something); best effort, a hook that is down is a warning, never a failed round.                                                                                                                                                                                    |
+| `NOONIEND_REVOKED`                       | —                                        | Comma-separated node ids the daemon never syncs with and refuses to accept.                                                                                                                                                                                                                                                                                                  |
+| `NOONIEND_DEPARTED`                      | —                                        | Comma-separated node ids explicitly gone: like `NOONIEND_REVOKED` but their replica is also discarded and they stop blocking collection.                                                                                                                                                                                                                                     |
+| `NOONIEND_TLS_CERT` / `NOONIEND_TLS_KEY` | —                                        | Serve TLS with this certificate and key.                                                                                                                                                                                                                                                                                                                                     |
+| `NOONIEND_TLS_CA`                        | —                                        | CA that signs the peers' certificates, used to verify them in both directions.                                                                                                                                                                                                                                                                                               |
+| `NOONIEND_TLS_REQUIRE_CLIENT`            | on                                       | Require a client certificate (mTLS).                                                                                                                                                                                                                                                                                                                                         |
 
 **Listen port.** The daemon listens on `49778`, a port we select ourselves from the dynamic range
 (49152-65535). Nothing assigns it and nothing has to: the expected deployment is a private
@@ -483,7 +483,7 @@ Every mutation is recorded as an **operation** in an append-only log, split into
 A read **folds** all shards: each element (entity, observation occurrence, relation) is an LWW
 register decided by `(HLC, node, sequence)`. A delete of an observation is content-level: it removes
 every occurrence older than it. Observations are shown while their entity is present, relations
-while both endpoints are present. The fold depends only on the *set* of operations, never on the
+while both endpoints are present. The fold depends only on the _set_ of operations, never on the
 order shards or lines were read. Operations are ordered by a **Hybrid Logical Clock**: the order
 survives clock skew, and a node that has observed a claim can write a correction ordered after it.
 An observed stamp further than a bounded skew in the future is clamped, so a wrong clock cannot drag
@@ -505,7 +505,7 @@ in operation order (`HLC`, `node`, `sequence`).
 
 The log grows with every mutation. Compaction rewrites this node's shard keeping, per element, only
 the operations that no later operation shadows — the shadow index is built from the **merged** log,
-so an operation superseded by *another node's* later operation is dropped too, and the winner of
+so an operation superseded by _another node's_ later operation is dropped too, and the winner of
 every element always survives, tombstones included. It runs **online**: the server compacts its own
 shard after `NOONIEN_COMPACT_AFTER` appends, and `noonien compact` does the same by hand. When
 each also collects tombstones — the physical deletion — is under [Deletion and
@@ -533,7 +533,7 @@ physical once nobody can still hold one.
 the operations a later one shadows that no retained off-mesh peer could still need, then it may drop
 a surviving tombstone when no peer off the mesh could contest that element. Two conditions gate it,
 per peer: the peer's **knowledge frontier** must be a subset of what this node already holds — a
-peer holding any operation this node lacks could hold a *relayed* operation on the element and is
+peer holding any operation this node lacks could hold a _relayed_ operation on the element and is
 treated as a blocker — and the frontier must cover no operation of the element, so only a peer that
 folded it can contest it; a peer that never folded it can still mint a coincident element (an
 independent name, an observation on an entity it knows), which the fold decides as a concurrent
@@ -547,16 +547,16 @@ could still contest, so the proof survives even when the tombstone lives on a di
 delete by one node of an element another created).
 
 The claim, in one line: collection needs **no barrier over the history** — a peer that never folded
-an element cannot *causally* contest it, however long it stays away, and neither a global round of
-acknowledgements nor a timer on the data is needed. What it *does* need is a **stable round over the
+an element cannot _causally_ contest it, however long it stays away, and neither a global round of
+acknowledgements nor a timer on the data is needed. What it _does_ need is a **stable round over the
 live set**: every retained peer that is still reachable must have been exchanged with in that round
 (otherwise the round **suspends**, because such a peer may hold writes this node has not pulled),
 and no retained peer may hold anything this node lacks. That is why `NOONIEND_FANOUT` and
-`NOONIEND_GC` exclude each other. Liveness is not autonomous: a peer that is unreachable *and*
+`NOONIEND_GC` exclude each other. Liveness is not autonomous: a peer that is unreachable _and_
 unverifiable — holding operations this node cannot read — blocks collection until the operator
-departs it (`NOONIEND_REVOKED` / `NOONIEND_DEPARTED`); the retention window bounds *metadata* and
+departs it (`NOONIEND_REVOKED` / `NOONIEND_DEPARTED`); the retention window bounds _metadata_ and
 forfeits no data, but it does not remove that decision. A peer this node has **never exchanged
-with**, on the other hand, gates nothing — and not out of leniency: a *causally aware* competitor,
+with**, on the other hand, gates nothing — and not out of leniency: a _causally aware_ competitor,
 the only thing a retained tombstone has to beat, means having folded the element, hence holding the
 tombstone. An operation of this node leaves here only through a push, and a push is recorded with
 the receiver's **post-push** high-water mark, so a tombstone that is collectable is held by nobody
@@ -576,7 +576,7 @@ pulled. Forgetting a peer (the membership TTL) does not unblock it — it may be
 with valid unsent writes — but `NOONIEND_REVOKED` and `NOONIEND_DEPARTED` do, the operator's
 decision that its writes are expendable; a departed peer's replica is discarded outright. A
 forfeited node's **authorship** is dropped from the gate as well, so it stops holding the collection
-back through the peers that still hold its replica; a *revoked* node's operations already here keep
+back through the peers that still hold its replica; a _revoked_ node's operations already here keep
 their elements frozen until it is departed, which discards them. Turn the daemon's collection off
 with `NOONIEND_GC=false`.
 
@@ -587,7 +587,7 @@ what this node already holds — is merged into a durable **retired frontier**, 
 maximum per author. The maximum is exactly the union of the per-element decisions the peers would
 have made, so it keeps gating every element those peers could have folded, **including deletions
 that happen after the retirement**, over one map bounded by the shards this node holds rather than
-one map per peer. (A per-element list computed at expiry would *not* be sound: a tombstone created
+one map per peer. (A per-element list computed at expiry would _not_ be sound: a tombstone created
 later is not on it.) An **unaccounted** peer — one that claims operations this node cannot read —
 leaves a durable **blanket** instead: the same "it could hold anything" that gated it while it was
 live, stated once rather than carried as an unverifiable map. Nothing is forfeited by retiring,
@@ -619,17 +619,17 @@ node's shard is refused and reported.
 The daemon serves every metric at `/metrics` (the MCP server is stdio and has no endpoint). The
 collection and retention state:
 
-| Metric | Meaning |
-| --- | --- |
-| `noonien_gossip_frozen_elements` | deleted elements kept because a peer off the mesh may still contest them |
-| `noonien_gossip_absent_nodes` | retained peers not exchanged with in the last round |
-| `noonien_gossip_absent_seconds{node}` | how long each peer has been away |
-| `noonien_gossip_retained_peers` | peers whose knowledge still gates collection |
-| `noonien_gossip_unreached_peers` | retained peers never exchanged with, whose ignorance gates no collection |
-| `noonien_gossip_retired_total` | peers retired into the retired frontier |
-| `noonien_gossip_retired_unaccounted_total` | peers retired with a blanket |
-| `noonien_gossip_retired_authors` | authors whose thresholds survive in the retired frontier |
-| `noonien_gossip_blankets` | durable blankets in force |
+| Metric                                     | Meaning                                                                  |
+| ------------------------------------------ | ------------------------------------------------------------------------ |
+| `noonien_gossip_frozen_elements`           | deleted elements kept because a peer off the mesh may still contest them |
+| `noonien_gossip_absent_nodes`              | retained peers not exchanged with in the last round                      |
+| `noonien_gossip_absent_seconds{node}`      | how long each peer has been away                                         |
+| `noonien_gossip_retained_peers`            | peers whose knowledge still gates collection                             |
+| `noonien_gossip_unreached_peers`           | retained peers never exchanged with, whose ignorance gates no collection |
+| `noonien_gossip_retired_total`             | peers retired into the retired frontier                                  |
+| `noonien_gossip_retired_unaccounted_total` | peers retired with a blanket                                             |
+| `noonien_gossip_retired_authors`           | authors whose thresholds survive in the retired frontier                 |
+| `noonien_gossip_blankets`                  | durable blankets in force                                                |
 
 The same endpoint carries the transport and liveness families — `noonien_gossip_rounds_total`,
 `noonien_gossip_round_seconds`, `noonien_gossip_round_bytes`, `noonien_gossip_links`,
@@ -652,22 +652,22 @@ The MCP surface is the official nine, drop-in: names, inputs, outputs and messag
 elements more than one machine wrote are visible — and the nine are never changed. `read_graph` and
 `search_nodes` take an optional page and type filter; without them they answer exactly as before.
 
-| Tool | Does |
-| --- | --- |
-| `create_entities` | create multiple new entities in the knowledge graph |
-| `create_relations` | create multiple new relations between entities (active voice) |
-| `add_observations` | add new observations to existing entities |
-| `delete_entities` | delete entities and their associated relations |
-| `delete_observations` | delete specific observations from entities |
-| `delete_relations` | delete multiple relations |
-| `read_graph` | read the entire knowledge graph |
-| `search_nodes` | search nodes by a query, matched against entity names, types and observation content |
-| `open_nodes` | open specific nodes by their names |
-| `update_entities` | rename existing entities and/or change their entity type, moving their observations and relations |
-| `update_observations` | replace observation contents on existing entities |
-| `update_relations` | change the type of existing relations and/or repoint their endpoints |
-| `merge_entities` | merge an entity into another: the union of their observations, its relations repointed, the merged entity deleted |
-| `read_conflicts` | list the elements more than one node has written, with their authors |
+| Tool                  | Does                                                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `create_entities`     | create multiple new entities in the knowledge graph                                                               |
+| `create_relations`    | create multiple new relations between entities (active voice)                                                     |
+| `add_observations`    | add new observations to existing entities                                                                         |
+| `delete_entities`     | delete entities and their associated relations                                                                    |
+| `delete_observations` | delete specific observations from entities                                                                        |
+| `delete_relations`    | delete multiple relations                                                                                         |
+| `read_graph`          | read the entire knowledge graph                                                                                   |
+| `search_nodes`        | search nodes by a query, matched against entity names, types and observation content                              |
+| `open_nodes`          | open specific nodes by their names                                                                                |
+| `update_entities`     | rename existing entities and/or change their entity type, moving their observations and relations                 |
+| `update_observations` | replace observation contents on existing entities                                                                 |
+| `update_relations`    | change the type of existing relations and/or repoint their endpoints                                              |
+| `merge_entities`      | merge an entity into another: the union of their observations, its relations repointed, the merged entity deleted |
+| `read_conflicts`      | list the elements more than one node has written, with their authors                                              |
 
 ## Drop-in compatibility
 
@@ -742,7 +742,7 @@ without those arguments the answer is byte-for-byte the one they gave before.
   you trust as peers. The fold's last-writer-wins order trusts the operation's HLC stamp, so a
   member whose clock is far ahead wins every conflict on its elements; a wrong clock is a
   correctness hazard, not a privilege boundary. Collection also **trusts what a member reports**:
-  its frontier from `/shards` and the peer set it gossips — the certificate proves *who* it is, not
+  its frontier from `/shards` and the peer set it gossips — the certificate proves _who_ it is, not
   that its reports are true — and it assumes the mesh is the only path by which a node learns: a
   node that leaves must not keep receiving operations elsewhere (do not point a daemon and a shared
   `file`/`s3` area at the same directory, and a node bridging two meshes belongs to both or should
@@ -777,19 +777,19 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow and the ground rules.
 
 ## Why the name `noonien`?
 
-The name is an homage to *Star Trek: The Next Generation*. The project was first meant to be called
+The name is an homage to _Star Trek: The Next Generation_. The project was first meant to be called
 **"Datalore"** — the title of the episode (Season 1, Episode 13, first aired 18 January 1988) that
 introduces **Data** and his twin brother **Lore**, the two Soong-type androids built by Dr. **Noonien
-Soong**. *Data* is the good one; *Lore* is the flawed, emotional, malicious prototype. Both are
+Soong**. _Data_ is the good one; _Lore_ is the flawed, emotional, malicious prototype. Both are
 played by the same actor, Brent Spiner.
 
 The episode title is a portmanteau of the two androids, and the two names fit a knowledge graph
 almost too well:
 
-- **Data** — a *datum*: a single fact.
-- **Lore** — the body of *knowledge and tradition* shared by a community.
+- **Data** — a _datum_: a single fact.
+- **Lore** — the body of _knowledge and tradition_ shared by a community.
 
-So *datalore* would have meant the facts **plus** the shared lore — exactly what a shared agent
+So _datalore_ would have meant the facts **plus** the shared lore — exactly what a shared agent
 memory is. But "Datalore" is also the name of an unrelated commercial product in the same software
 space, so rather than carry that brand conflict the project was renamed **`noonien`**, after the
 androids' creator, Dr. Noonien Soong. Naming it after their maker keeps the homage to **both** Data
@@ -806,13 +806,13 @@ both twins also shaped the episode's twist.
 
 References:
 
-- Memory Alpha — *Datalore (episode)*: <https://memory-alpha.fandom.com/wiki/Datalore_(episode)>
-- Memory Alpha — *Noonien Soong*: <https://memory-alpha.fandom.com/wiki/Noonien_Soong>
-- Memory Alpha — *Lore*: <https://memory-alpha.fandom.com/wiki/Lore>
+- Memory Alpha — _Datalore (episode)_: <https://memory-alpha.fandom.com/wiki/Datalore_(episode)>
+- Memory Alpha — _Noonien Soong_: <https://memory-alpha.fandom.com/wiki/Noonien_Soong>
+- Memory Alpha — _Lore_: <https://memory-alpha.fandom.com/wiki/Lore>
 
-*This project is an independent fan homage. "Star Trek", "Data", "Lore" and "Noonien Soong" are the
+_This project is an independent fan homage. "Star Trek", "Data", "Lore" and "Noonien Soong" are the
 property of their respective rights holders; this project is not affiliated with or endorsed by
-them.*
+them._
 
 ## Documentation
 

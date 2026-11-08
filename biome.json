@@ -95,6 +95,12 @@
       }
     },
     {
+      "includes": ["docs/paper.md"],
+      "formatter": {
+        "enabled": false
+      }
+    },
+    {
       "includes": ["src/sync/s3-aws.ts"],
       "linter": {
         "rules": {

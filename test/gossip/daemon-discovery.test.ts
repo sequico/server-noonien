@@ -161,6 +161,7 @@ describe("discovery candidates", () => {
       await a.syncOnce()
       return (await membershipSize(a.url)) === 2
     })
+    expect(await peerIds(a.url)).toContain("joiner-b")
   })
 
   it("finds a peer that appears after the first discovery, on the periodic refresh", async () => {

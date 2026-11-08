@@ -225,16 +225,19 @@ describe("syncWith", () => {
   })
 
   it("converges on the union of every shard under arbitrary operation sequences", async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.array(fc.array(fc.integer({ min: 0, max: POOL.length - 1 }), { maxLength: 4 }), {
-          minLength: 2,
-          maxLength: 3,
-        }),
-        checkConvergence,
+    // The property asserts convergence on every case, so a failure rejects the promise.
+    await expect(
+      fc.assert(
+        fc.asyncProperty(
+          fc.array(fc.array(fc.integer({ min: 0, max: POOL.length - 1 }), { maxLength: 4 }), {
+            minLength: 2,
+            maxLength: 3,
+          }),
+          checkConvergence,
+        ),
+        { numRuns: 15 },
       ),
-      { numRuns: 15 },
-    )
+    ).resolves.toBeUndefined()
   }, 20_000)
 
   it("relays a third node's shard through an intermediate peer", async () => {
@@ -596,16 +599,18 @@ describe("syncWith", () => {
   })
 
   it("converges when only a subset of pairs reconciles each round", async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.array(fc.array(fc.integer({ min: 0, max: POOL.length - 1 }), { maxLength: 4 }), {
-          minLength: 2,
-          maxLength: 3,
-        }),
-        checkSubsetConvergence,
+    await expect(
+      fc.assert(
+        fc.asyncProperty(
+          fc.array(fc.array(fc.integer({ min: 0, max: POOL.length - 1 }), { maxLength: 4 }), {
+            minLength: 2,
+            maxLength: 3,
+          }),
+          checkSubsetConvergence,
+        ),
+        { numRuns: 15 },
       ),
-      { numRuns: 15 },
-    )
+    ).resolves.toBeUndefined()
   }, 30_000)
 
   it("keeps three nodes converging with snapshot replacement in a full round", async () => {

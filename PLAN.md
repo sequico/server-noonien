@@ -23,6 +23,7 @@ across hosts through pluggable sync backends.
 ## Architecture
 
 ### Data model
+
 Same as the official server:
 - **Entity**: `{ name, entityType, observations[] }`
 - **Relation**: `{ from, to, relationType }`
@@ -30,6 +31,7 @@ Same as the official server:
   deduplicated; observations behave exactly like the official server (see below).
 
 ### Convergence model (CRDT)
+
 Represent every mutation as an operation in an append-only log. The merged state is an
 **LWW-Element-Set**:
 
@@ -52,6 +54,7 @@ Properties required and tested:
 - **Convergent**: two nodes with the same op set are byte-identical after fold.
 
 ### Storage layout
+
 - Each node owns one shard: `<sync-dir>/<node>.jsonl`. The node id defaults to the hostname and is
   normalized to a safe file stem **injectively** — a label that had to be replaced gains a digest of
   the original — so two different labels can never collapse onto one shard. Normal writes only
@@ -84,6 +87,7 @@ Properties required and tested:
   shard is touched.
 
 ### Sync backends (pluggable)
+
 `NOONIEN_BACKEND` selects one of three backends — `file`, `s3` or `memory`. The `file` and `s3`
 backends converge through a **shared area** — a replicated directory or a shared bucket; noonien
 merges the shards, it does not move them. The `gossip` transport is **not** a backend: it is the
@@ -198,7 +202,7 @@ on a specific provider.
 - **Bounded retention: retire a silent peer without weakening the gate** — the durable metadata a
   collection depends on grows with the peers that vanish, and the peers gone the longest are exactly
   the ones that must be remembered. After `NOONIEND_FORGET_AFTER` (default 180 days) a peer is
-  **retired**, which moves *where* the protection lives and never *which* elements are guarded: an
+  **retired**, which moves _where_ the protection lives and never _which_ elements are guarded: an
   **accounted** peer (its frontier is a subset of what this node holds) is merged into a durable
   **retired frontier**, one elementwise maximum per author, which is exactly the union of the
   per-element decisions it and its fellow retirees would have made — over one map bounded by the
@@ -209,7 +213,7 @@ on a specific provider.
   synced before it is renamed and an unreadable one stops the daemon, empty included. Nothing is
   forfeited by retiring, so the window can be on by default and `NOONIEND_REVOKED`/`_DEPARTED` stay
   the only forfeiture (a maximum cannot be un-merged, so a node must be departed before its window
-  expires). Two details make it sound: the *comparison* is kept rather than the elements it once
+  expires). Two details make it sound: the _comparison_ is kept rather than the elements it once
   covered — a per-element pin computed at expiry would miss a tombstone created **after** the expiry
   — and a frontier that claims an author this node cannot serve is never recorded, so a peer cannot
   freeze the mesh with a claim it cannot back. A claimed node that was never reached has nothing to
@@ -225,22 +229,23 @@ on a specific provider.
   without removing the decision.
 
 ## Tool surface
-| Tool | Kind |
-| --- | --- |
-| `create_entities` | additive |
-| `add_observations` | additive |
-| `create_relations` | additive |
-| `delete_entities` | tombstone |
-| `delete_observations` | tombstone |
-| `delete_relations` | tombstone |
-| `read_graph` | read |
-| `search_nodes` | read |
-| `open_nodes` | read |
-| `update_entities` | additive + tombstone |
+
+| Tool                  | Kind                 |
+| --------------------- | -------------------- |
+| `create_entities`     | additive             |
+| `add_observations`    | additive             |
+| `create_relations`    | additive             |
+| `delete_entities`     | tombstone            |
+| `delete_observations` | tombstone            |
+| `delete_relations`    | tombstone            |
+| `read_graph`          | read                 |
+| `search_nodes`        | read                 |
+| `open_nodes`          | read                 |
+| `update_entities`     | additive + tombstone |
 | `update_observations` | additive + tombstone |
-| `update_relations` | additive + tombstone |
-| `merge_entities` | additive + tombstone |
-| `read_conflicts` | read |
+| `update_relations`    | additive + tombstone |
+| `merge_entities`      | additive + tombstone |
+| `read_conflicts`      | read                 |
 
 The nine official tools are drop-in. The `update_*`, `merge_entities` and `read_conflicts`
 extensions are additions the official server does not have: an edit or a merge is a tombstone of
@@ -254,6 +259,7 @@ every mutation; on the 2026-07-28 revision it opens a `subscriptions/listen` str
 server speaks both.
 
 ## CLI
+
 The package ships three commands. `server-noonien` is the MCP server — with no argument (or `serve`)
 it serves over stdio, so the package name and the client entry are the same. The maintenance CLI is
 `noonien`, and the replication daemon is `nooniend`.
@@ -274,6 +280,7 @@ through environment variables: the shared `NOONIEN_DIR` and `NOONIEN_NODE_ID` pl
 `NOONIEND_*`.
 
 ## Distribution
+
 - Language: **TypeScript** (the `@modelcontextprotocol/server` SDK); the npm package `server-noonien`
   runs via `npx server-noonien` (published on the public npm registry) and ships three commands:
   `server-noonien` (the MCP server), `noonien` (the CLI) and `nooniend` (the replication daemon).
@@ -281,6 +288,7 @@ through environment variables: the shared `NOONIEN_DIR` and `NOONIEN_NODE_ID` pl
 - License: MPL 2.0.
 
 ## Testing
+
 - Property-based tests for the CRDT laws (idempotence, commutativity, associativity, convergence),
   and that compaction preserves the merged graph.
 - Unit tests for the fold, the shard log and the nine operations, including the incremental shard

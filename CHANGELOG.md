@@ -33,7 +33,7 @@ version and its date.
 - A durable peer record the daemon cannot parse leaves a **blanket** instead of reading as "this
   peer holds nothing"; the record is synced before the rename and an empty one stops the daemon,
   because the only way it appears is a crash that lost the write.
-- On S3, a shard object with a multipart ETag reads and stats normally — only a conditional *write*
+- On S3, a shard object with a multipart ETag reads and stats normally — only a conditional _write_
   refuses a token the store cannot use, instead of one such object failing every tool call.
 - Bound what an unauthenticated request can grow: the discovery candidate set and the forgotten
   versions carry the peer set's ceiling, and a round exchanges with a bounded number of peers at
@@ -60,7 +60,7 @@ version and its date.
   operations, so it holds them, and the elements it delivered stay frozen even if it never answers
   again — instead of reading as uncontested once it is gone.
 - Collection is no longer frozen for ever by a member this node never exchanged with: such a peer cannot
-  hold a *causally aware* competitor — that requires the tombstone, and an operation of this node
+  hold a _causally aware_ competitor — that requires the tombstone, and an operation of this node
   leaves here only through a push, which is recorded with the receiver's post-push high-water mark —
   so it no longer counts as "could hold anything" and blocks every deletion on the mesh. The peers
   tolerated this way are published as `noonien_gossip_unreached_peers`.

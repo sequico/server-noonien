@@ -422,9 +422,10 @@ re-importing is idempotent, and it prunes that shard on the way out.
 `noonien compact` prunes **every** `*-import` shard the directory holds, this node's and a peer's.
 An import only ever adds and is written once, on whichever machine ran it, so without that a
 replica's shadowed adds stay contested in `read_conflicts` for ever — the machine that could have
-pruned them may be gone or renamed. It needs neither the peer knowledge nor the `NOONIEN_GC`
-promise: it drops only the operations a later one shadowed, never a tombstone, and rewrites only
-when something was dropped, so a repeat pass costs nothing and asks no peer to re-pull. The folded
+pruned them may be gone or renamed. That prune needs neither the peer knowledge nor the
+`NOONIEN_GC` promise: it drops only the operations a later one shadowed, never a tombstone, and
+rewrites only when something was dropped, so a repeat pass costs nothing and asks no peer to
+re-pull. The folded
 graph is byte-identical after the pass, and the pruned shard propagates in the next round. The one
 window it cannot close is a re-import running on that shard's own machine at the same moment: the
 compacted generation wins the round and the fresh import is superseded, so re-run the import — it is

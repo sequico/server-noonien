@@ -55,7 +55,9 @@ function textResult(text: string): { type: "text"; text: string } {
  * knowledge-graph resource on a server, backed by the given graph. The nine
  * names, inputs, outputs, messages and annotations mirror
  * `@modelcontextprotocol/server-memory` exactly; the `update_*`, `merge_entities`
- * and `read_conflicts` additions never change them. `onMutate`
+ * and `read_conflicts` additions never change them. The description text is ours and
+ * the drop-in contract does not cover it: each keeps the official sentence and adds
+ * what an agent needs to choose the tool and predict its effect. `onMutate`
  * runs after every successful mutation so the server can notify subscribers.
  */
 function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: () => void): void {
@@ -63,8 +65,13 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     "create_entities",
     {
       title: "Create Entities",
-      description: "Create multiple new entities in the knowledge graph",
-      inputSchema: z.object({ entities: z.array(EntitySchema) }),
+      description:
+        "Create multiple new entities in the knowledge graph. A name that already exists is skipped and left unchanged — use add_observations to extend it — and only the entities actually created are returned. Observations are stored exactly as given, duplicate contents included.",
+      inputSchema: z.object({
+        entities: z
+          .array(EntitySchema)
+          .describe("The entities to create, each with its name, type and observations"),
+      }),
       outputSchema: z.object({ entities: z.array(EntitySchema) }),
       annotations: annotationsAdd,
     },
@@ -83,8 +90,12 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     {
       title: "Create Relations",
       description:
-        "Create multiple new relations between entities in the knowledge graph. Relations should be in active voice",
-      inputSchema: z.object({ relations: z.array(RelationSchema) }),
+        'Create multiple new relations between entities in the knowledge graph. Relations should be in active voice. Both endpoints must already exist: one missing name fails the whole call with "Entity with name … not found". A relation that is already present is skipped, so the response lists only the ones added.',
+      inputSchema: z.object({
+        relations: z
+          .array(RelationSchema)
+          .describe("The relations to create, each with its from, to and relationType"),
+      }),
       outputSchema: z.object({ relations: z.array(RelationSchema) }),
       annotations: annotationsAdd,
     },
@@ -102,14 +113,17 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     "add_observations",
     {
       title: "Add Observations",
-      description: "Add new observations to existing entities in the knowledge graph",
+      description:
+        "Add new observations to existing entities in the knowledge graph. Content the entity already holds is not added again, while duplicates within one request are kept as separate occurrences; the response reports what was added per entity. Every named entity must exist — a missing one fails the whole call, so create it with create_entities first. To replace a content use update_observations, to remove one use delete_observations.",
       inputSchema: z.object({
-        observations: z.array(
-          z.object({
-            entityName: z.string().describe("The name of the entity to add the observations to"),
-            contents: z.array(z.string()).describe("An array of observation contents to add"),
-          }),
-        ),
+        observations: z
+          .array(
+            z.object({
+              entityName: z.string().describe("The name of the entity to add the observations to"),
+              contents: z.array(z.string()).describe("An array of observation contents to add"),
+            }),
+          )
+          .describe("One entry per entity: the entity name and the contents to add"),
       }),
       outputSchema: z.object({
         results: z.array(
@@ -136,21 +150,23 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     {
       title: "Update Entities",
       description:
-        "Prefer this to deleting an entity and re-creating it under another name: rename existing entities and/or change their entity type, keeping their observations and relations",
+        "Prefer this to deleting an entity and re-creating it under another name: rename existing entities and/or change their entity type, keeping their observations and relations. A rename onto a name that already exists is refused rather than merging the two; an unknown name is reported and the batch keeps its other entries.",
       inputSchema: z.object({
-        entities: z.array(
-          z.object({
-            name: z.string().describe("The current name of the entity to update"),
-            newName: z
-              .string()
-              .optional()
-              .describe("The new name to rename the entity to; omit to keep the current name"),
-            entityType: z
-              .string()
-              .optional()
-              .describe("The new entity type; omit to keep the current type"),
-          }),
-        ),
+        entities: z
+          .array(
+            z.object({
+              name: z.string().describe("The current name of the entity to update"),
+              newName: z
+                .string()
+                .optional()
+                .describe("The new name to rename the entity to; omit to keep the current name"),
+              entityType: z
+                .string()
+                .optional()
+                .describe("The new entity type; omit to keep the current type"),
+            }),
+          )
+          .describe("One entry per entity: the current name, and the new name and/or type"),
       }),
       outputSchema: z.object({
         results: z.array(
@@ -182,13 +198,17 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
       description:
         "Prefer this to delete_observations followed by add_observations: replace observation contents on existing entities in place",
       inputSchema: z.object({
-        updates: z.array(
-          z.object({
-            entityName: z.string().describe("The name of the entity holding the observation"),
-            oldContent: z.string().describe("The observation content to replace"),
-            newContent: z.string().describe("The content to replace it with"),
-          }),
-        ),
+        updates: z
+          .array(
+            z.object({
+              entityName: z.string().describe("The name of the entity holding the observation"),
+              oldContent: z.string().describe("The observation content to replace"),
+              newContent: z.string().describe("The content to replace it with"),
+            }),
+          )
+          .describe(
+            "One entry per replacement: the entity, the content to replace and the new content",
+          ),
       }),
       outputSchema: z.object({
         results: z.array(
@@ -218,27 +238,29 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     {
       title: "Update Relations",
       description:
-        "Prefer this to deleting a relation and creating another: change the type of existing relations and/or repoint their endpoints",
+        "Prefer this to deleting a relation and creating another: change the type of existing relations and/or repoint their endpoints. Each entry is matched by its current from, to and relationType; a missing match is reported, not thrown, so the batch keeps its other entries.",
       inputSchema: z.object({
-        relations: z.array(
-          z.object({
-            from: z.string().describe("The name of the entity where the relation starts"),
-            to: z.string().describe("The name of the entity where the relation ends"),
-            relationType: z.string().describe("The type of the relation"),
-            newFrom: z
-              .string()
-              .optional()
-              .describe("The new start entity; omit to keep the current one"),
-            newTo: z
-              .string()
-              .optional()
-              .describe("The new end entity; omit to keep the current one"),
-            newRelationType: z
-              .string()
-              .optional()
-              .describe("The new relation type; omit to keep the current one"),
-          }),
-        ),
+        relations: z
+          .array(
+            z.object({
+              from: z.string().describe("The name of the entity where the relation starts"),
+              to: z.string().describe("The name of the entity where the relation ends"),
+              relationType: z.string().describe("The type of the relation"),
+              newFrom: z
+                .string()
+                .optional()
+                .describe("The new start entity; omit to keep the current one"),
+              newTo: z
+                .string()
+                .optional()
+                .describe("The new end entity; omit to keep the current one"),
+              newRelationType: z
+                .string()
+                .optional()
+                .describe("The new relation type; omit to keep the current one"),
+            }),
+          )
+          .describe("One entry per relation: its current from/to/relationType and the new values"),
       }),
       outputSchema: z.object({
         results: z.array(
@@ -268,14 +290,18 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     {
       title: "Merge Entities",
       description:
-        "Prefer this to deleting one entity and re-adding its observations and relations to another: merge an entity into another, unioning their observations and repointing its relations",
+        "Prefer this to deleting one entity and re-adding its observations and relations to another: merge an entity into another, unioning their observations and repointing its relations. The target keeps its name; the absorbed entity is deleted.",
       inputSchema: z.object({
-        merges: z.array(
-          z.object({
-            from: z.string().describe("The name of the entity to merge in and delete"),
-            into: z.string().describe("The name of the entity it is merged into"),
-          }),
-        ),
+        merges: z
+          .array(
+            z.object({
+              from: z.string().describe("The name of the entity to merge in and delete"),
+              into: z.string().describe("The name of the entity it is merged into"),
+            }),
+          )
+          .describe(
+            "One entry per merge: the entity to absorb and delete, and the entity it merges into",
+          ),
       }),
       outputSchema: z.object({
         results: z.array(
@@ -304,7 +330,7 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     {
       title: "Delete Entities",
       description:
-        "Delete multiple entities and their associated relations from the knowledge graph",
+        "Delete multiple entities and their associated relations from the knowledge graph. Unknown names are ignored rather than failing, and the message reports how many were deleted and which were not found. The deletion also removes the entity's observations and its incident relations, and it is durable: a tombstone beats a concurrent write from another machine.",
       inputSchema: z.object({
         entityNames: z.array(z.string()).describe("An array of entity names to delete"),
       }),
@@ -329,14 +355,17 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     "delete_observations",
     {
       title: "Delete Observations",
-      description: "Delete specific observations from entities in the knowledge graph",
+      description:
+        "Delete specific observations from entities in the knowledge graph. Deletion is by content: every occurrence of that content on the entity goes. A batch is not all-or-nothing — the message reports how many were deleted and names the entities that were not found. To replace a content in place use update_observations; to remove the whole entity use delete_entities.",
       inputSchema: z.object({
-        deletions: z.array(
-          z.object({
-            entityName: z.string().describe("The name of the entity containing the observations"),
-            observations: z.array(z.string()).describe("An array of observations to delete"),
-          }),
-        ),
+        deletions: z
+          .array(
+            z.object({
+              entityName: z.string().describe("The name of the entity containing the observations"),
+              observations: z.array(z.string()).describe("An array of observations to delete"),
+            }),
+          )
+          .describe("One entry per entity: the entity name and the contents to delete"),
       }),
       outputSchema: z.object({ success: z.boolean(), message: z.string() }),
       annotations: annotationsDelete,
@@ -361,7 +390,8 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     "delete_relations",
     {
       title: "Delete Relations",
-      description: "Delete multiple relations from the knowledge graph",
+      description:
+        "Delete multiple relations from the knowledge graph. A relation is matched by its from, to and relationType; one that matches nothing is ignored, and the message reports how many of the requested relations were deleted. Deleting an entity removes its incident relations with it, so this is for dropping one edge while both endpoints stay.",
       inputSchema: z.object({
         relations: z.array(RelationSchema).describe("An array of relations to delete"),
       }),
@@ -387,7 +417,7 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     {
       title: "Read Graph",
       description:
-        "Read the knowledge graph, or a page of it: the optional limit and offset take a slice of the entities in name order",
+        "Read the knowledge graph, or a page of it: the optional limit and offset take a slice of the entities in name order. Use it for the whole graph; for a query use search_nodes, for names you already know use open_nodes, and for the elements more than one node wrote use read_conflicts. A page carries the relations that touch its entities.",
       inputSchema: z.object({
         limit: z
           .number()
@@ -418,7 +448,8 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     "search_nodes",
     {
       title: "Search Nodes",
-      description: "Search for nodes in the knowledge graph based on a query",
+      description:
+        "Search for nodes in the knowledge graph based on a query. The query is matched against entity names, types and observation content; entityType narrows to one exact type, and limit/offset page the matches in name order. For the whole graph use read_graph, and for names you already know use open_nodes.",
       inputSchema: z.object({
         query: z
           .string()
@@ -459,7 +490,8 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     "open_nodes",
     {
       title: "Open Nodes",
-      description: "Open specific nodes in the knowledge graph by their names",
+      description:
+        "Open specific nodes in the knowledge graph by their names. Names that do not exist are omitted rather than failing, and the result carries every relation touching the entities returned, including relations to entities outside it. Use it when the names are known; for a query use search_nodes, for everything use read_graph.",
       inputSchema: z.object({
         names: z.array(z.string()).describe("An array of entity names to retrieve"),
       }),

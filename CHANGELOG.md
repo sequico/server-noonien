@@ -7,6 +7,14 @@ version and its date.
 
 [rp]: https://github.com/googleapis/release-please
 
+## Unreleased
+
+- **Richer tool descriptions and parameter docs.** Each of the fourteen tools now says when to
+  reach for it instead of a sibling, what happens to an entity that already exists, and how a batch
+  fails; every parameter carries a description. Names, inputs and outputs are unchanged, so a
+  drop-in client sees the same surface — only the metadata an agent reads got fuller (Glama's TDQS
+  scored the inherited one-sentence descriptions at 2.8-3.8 of 5).
+
 ## 1.2.0 (2026-11-08)
 
 - **`noonien compact` maintains every `*-import` shard in the directory, not only this node's.** A

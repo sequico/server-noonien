@@ -178,8 +178,9 @@ machines](#share-across-machines) is the next step. In OpenCode (V2):
 ```
 
 Other clients wrap the same command and environment in their own envelope; from a clone the command
-is `["node", "/path/to/server-noonien/dist/index.js"]`. Because the nine drop-in tools are identical,
-you can replace the `memory` server entry with `server-noonien` and change nothing else.
+is `["node", "/path/to/server-noonien/dist/index.js"]`. Because the nine drop-in tools keep the same
+names, inputs and outputs, you can replace the `memory` server entry with `server-noonien` and change
+nothing else.
 
 ### `noonien` — the maintenance CLI
 
@@ -662,6 +663,10 @@ The MCP surface is the official nine, drop-in: names, inputs, outputs and messag
 — an entity, a relation and an observation can be edited, two entities can be merged, and the
 elements more than one machine wrote are visible — and the nine are never changed. `read_graph` and
 `search_nodes` take an optional page and type filter; without them they answer exactly as before.
+
+Each tool's description keeps the official sentence and adds what the contract does not fix: when to
+reach for the tool instead of a sibling, what it does to an entity that already exists, and how a
+batch fails. Every parameter carries a description too, so a client shows the shape without guessing.
 
 | Tool                  | Does                                                                                                              |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------- |

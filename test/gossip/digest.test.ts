@@ -38,7 +38,7 @@ function info(capabilities: string[]): PeerInfoDto {
 
 describe("bucketOf", () => {
   it("is stable and in range", () => {
-    for (const node of ["a", "ai", "z600", "mail-greensley", "n42"]) {
+    for (const node of ["a", "ai", "z600", "mg", "n42"]) {
       const bucket = bucketOf(node)
       expect(bucket).toBeGreaterThanOrEqual(0)
       expect(bucket).toBeLessThan(DIGEST_BUCKETS)

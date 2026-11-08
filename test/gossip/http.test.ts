@@ -361,7 +361,7 @@ describe("gossip HTTP service", () => {
     expect(await push("lenovo")).toBe(200)
     // At the ceiling: a node id nobody invented yet is refused with a status the
     // peer can act on, and a shard already held keeps accepting more operations.
-    expect(await push("mail-greensley")).toBe(507)
+    expect(await push("mg")).toBe(507)
     expect(await push("z600")).toBe(200)
   })
 

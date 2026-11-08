@@ -1,4 +1,9 @@
 {
   "$schema": "https://glama.ai/mcp/schemas/server.json",
-  "maintainers": ["sequico"]
+  "maintainers": ["sequico"],
+  "baseImage": "debian:trixie-slim",
+  "buildSteps": ["npm ci --include=dev", "npm run build"],
+  "cmdArguments": ["mcp-proxy", "--", "node", "dist/index.js"],
+  "nodeVersion": "24",
+  "placeholderArguments": {}
 }

@@ -8,10 +8,13 @@
 # (`~/.noonien` by default) and every backend is reproduced from the environment.
 
 # Build stage: compile the TypeScript sources with the full toolchain.
+# The build needs `typescript`, a devDependency: `--include=dev` keeps it even when
+# the surrounding environment sets NODE_ENV=production, where a plain `npm ci` would
+# strip the compiler and `npm run build` fails with `tsc: not found`.
 FROM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --include=dev
 COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
 RUN npm run build

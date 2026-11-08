@@ -70,8 +70,8 @@ mutation reads and rewrites in full. That breaks the moment you have more than o
 tool surface:
 
 - **Every node keeps its own memory.** Each machine writes only its own append-only shard
-  (`<node>.jsonl`); a shard has a single writer by design, so no two nodes ever write the same file
-  and noonien itself never forks one — a shared area's syncer still can, and a conflict copy is
+  (`<node>.jsonl`); a shard has a single writer by design, so no two servers ever write the same
+  file and noonien itself never forks one — a shared area's syncer still can, and a conflict copy is
   just another shard to fold.
 - **Shards merge, they do not overwrite.** The graph is a CRDT — an **LWW-Element-Set** ordered by
   `(HLC, node, sequence)` — whose merge is idempotent, commutative, associative and convergent. Any
@@ -429,7 +429,9 @@ and every node keeps a replica of it, so a peer's shadowed adds would otherwise 
 `read_conflicts` for ever: the peer that could have pruned them may be gone or renamed, and the
 element is no longer in the graph. Pruning a replica can lose nothing, from any node: an import
 shard only ever adds, and a tombstone is never dropped, so the folded graph is byte-identical after
-the pass and the pruned shard propagates in the next round.
+the pass and the pruned shard propagates in the next round. The one window it cannot close is a
+re-import running on that shard's own machine at the same moment: the compacted generation wins the
+round and the fresh import is superseded, so re-run the import — it is idempotent.
 
 On the `file` backend, `append` and `compact` take a per-shard lock, so they serialize
 instead of racing even across processes — and the daemon takes the same lock. An append is synced
@@ -528,8 +530,9 @@ Every compaction stamps a `shard.compact` metadata operation (never a graph elem
 `generation` is bumped each time, and its `seq` is the shard's durable high-water mark, so the
 sequence never regresses and a compaction is never mistaken for a lost shard. Peers read the
 generation from `/shards` and replace a stale replica with the compacted shard, so every copy
-converges to the compacted content. Only the local shard is rewritten; every other shard is
-untouched, so compaction is conflict-free and other nodes are unaffected.
+converges to the compacted content — a pruned `*-import` shard travels the same way. The rewrite
+covers this node's own shard and every `*-import` shard, which only ever adds; a peer's own shard is
+never touched, so compaction cannot conflict with its writer.
 
 ### Deletion and collection
 

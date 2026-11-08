@@ -120,15 +120,34 @@ describe("noonien import", () => {
     ])
 
     const first = await compactShard(env(directory))
-    expect(first.imported?.shard).toBe("n1-import.jsonl")
-    expect(first.imported?.result).toEqual({ before: 2, after: 2, dropped: 1 })
+    expect(first.imports.map(({ shard }) => shard)).toEqual(["n1-import.jsonl"])
+    expect(first.imports[0]?.result).toEqual({ before: 2, after: 2, dropped: 1 })
     expect(await shardTypes(directory, "n1-import")).toEqual(["entity.create", "shard.compact"])
 
     // A second pass finds nothing to drop: the file is untouched, so there is no rewrite
     // and no generation churn (which would make every peer re-pull the shard).
     const pruned = await readFile(join(directory, "n1-import.jsonl"), "utf8")
     const second = await compactShard(env(directory))
-    expect(second.imported?.result).toEqual({ before: 2, after: 2, dropped: 0 })
+    expect(second.imports[0]?.result).toEqual({ before: 2, after: 2, dropped: 0 })
     expect(await readFile(join(directory, "n1-import.jsonl"), "utf8")).toBe(pruned)
+  })
+
+  it("prunes a peer's import shard too, which this host only replicates", async () => {
+    const directory = await tempDirectory()
+    // A peer's import reaches this host only as a replica, and its author has no process
+    // here to maintain it: without this the add stays contested for ever.
+    const peer = new ShardLog(new FileBackend(directory), "n0-import")
+    await peer.append([{ type: "entity.create", name: "Ada", entityType: "person" }])
+    await peer.append([{ type: "observation.add", entityName: "Ada", content: "math" }])
+    // A later deletion by this node shadows the imported observation.
+    await new ShardLog(new FileBackend(directory), "n1").append([
+      { type: "observation.delete", entityName: "Ada", content: "math" },
+    ])
+
+    const { imports } = await compactShard(env(directory))
+    expect(imports.map(({ shard, result }) => [shard, result.dropped])).toEqual([
+      ["n0-import.jsonl", 1],
+    ])
+    expect(await shardTypes(directory, "n0-import")).toEqual(["entity.create", "shard.compact"])
   })
 })

@@ -9,6 +9,7 @@ import {
   createImportGraph,
   createMemoryGraph,
   createShardLog,
+  IMPORT_SHARD_SUFFIX,
   loadConfig,
 } from "./config.js"
 import { collectionGuard } from "./gossip/collection.js"
@@ -17,6 +18,7 @@ import { parseOfficialMemory } from "./migrate.js"
 import { PACKAGE } from "./package.js"
 import { runStdioServer } from "./serve.js"
 import type { CollectionResult, PruneResult } from "./store/log.js"
+import { nodeOfShard } from "./sync/backend.js"
 
 const HELP = `noonien — shared, serverless, conflict-free memory for AI agents
 
@@ -30,7 +32,8 @@ Commands:
   import <file>      Import an official server-memory JSONL file (own shard, online)
   export             Print the folded knowledge graph as JSON
   merge              Fold every shard and report the merged state
-  compact            Maintain this node's shards now; delete tombstones only where it is safe
+  compact            Maintain this node's shards and every *-import shard now; delete
+                     tombstones only where it is safe
   query <text>       Search entities and print the matching subgraph
   help               Show this help
 
@@ -109,14 +112,18 @@ async function mergeShards(): Promise<void> {
  * place that judgment lives and the MCP server's online maintenance consults the very
  * same one — so running `compact` on a synced folder cannot collect where the server
  * would refuse, nor prune where the daemon needs the evidence.
+ *
+ * Every `*-import` shard in the directory is pruned as well, this node's or a peer's: an
+ * import only ever adds, so its shadowed operations are all that can go and no knowledge
+ * or promise is needed — while a replica nobody prunes keeps them contested for ever.
  */
 export async function compactShard(env: NodeJS.ProcessEnv = process.env): Promise<{
   readonly shard: string
   readonly result: CollectionResult
   /** Why the tombstones were kept, when they were: written for the operator. */
   readonly reason: string | undefined
-  /** This machine's `<node>-import` shard, pruned when the directory holds one. */
-  readonly imported: { readonly shard: string; readonly result: PruneResult } | undefined
+  /** Every `*-import` shard the directory holds, pruned under its own author. */
+  readonly imports: readonly { readonly shard: string; readonly result: PruneResult }[]
 }> {
   const config = loadConfig(env)
   const log = createShardLog(env)
@@ -131,19 +138,24 @@ export async function compactShard(env: NodeJS.ProcessEnv = process.env): Promis
   } else {
     result = { ...(await log.compact()), frozen: 0 }
   }
-  // The `<node>-import` shard is written by this machine too and only ever adds: it needs
-  // neither the peer knowledge nor the promise, so pruning it is always safe — and this is
-  // the only maintenance it ever gets (the import does it on the way out as well).
-  const importLog = createShardLog(env, `${config.nodeId}-import`)
-  const importShard = importLog.shardName
-  const imported = (await importLog.shards()).includes(importShard)
-    ? { shard: importShard, result: await importLog.prune() }
-    : undefined
+  // Every `*-import` shard is written by an author that only ever adds, on this machine or
+  // on a peer's, and a replica keeps it until someone prunes it: it needs neither the peer
+  // knowledge nor the promise, so pruning it is always safe. Its author may long be gone —
+  // the shard outlives the import — and the only thing that ever clears the conflicts a
+  // migration leaves behind is dropping its shadowed operations, from any node.
+  const imports: { shard: string; result: PruneResult }[] = []
+  for (const shard of await log.shards()) {
+    const node = nodeOfShard(shard)
+    if (!node.endsWith(IMPORT_SHARD_SUFFIX)) {
+      continue
+    }
+    imports.push({ shard, result: await createShardLog(env, node).prune() })
+  }
   return {
     shard: log.shardName,
     result,
     reason: decision.allowed ? undefined : decision.reason,
-    imported,
+    imports,
   }
 }
 
@@ -188,17 +200,20 @@ export async function runCli(argv: string[]): Promise<void> {
       await mergeShards()
       return
     case "compact": {
-      const { shard, result, reason, imported } = await compactShard()
+      const { shard, result, reason, imports } = await compactShard()
       process.stdout.write(
         `Compacted ${shard}: ${result.before} -> ${result.after} operations ` +
           `(${result.frozen} frozen).\n` +
           (reason === undefined ? "" : `Tombstones kept — ${reason}.\n`) +
-          (imported === undefined
-            ? ""
-            : `Pruned ${imported.shard}: ` +
-              (imported.result.dropped === 0
-                ? "nothing to drop.\n"
-                : `dropped ${imported.result.dropped} shadowed operation(s).\n`)),
+          imports
+            .map(
+              ({ shard: name, result: pruned }) =>
+                `Pruned ${name}: ` +
+                (pruned.dropped === 0
+                  ? "nothing to drop.\n"
+                  : `dropped ${pruned.dropped} shadowed operation(s).\n`),
+            )
+            .join(""),
       )
       return
     }

@@ -96,6 +96,12 @@ export function createShardLog(env: NodeJS.ProcessEnv = process.env, nodeId?: st
   return new ShardLog(createBackend(config), nodeId ?? config.nodeId)
 }
 
+/**
+ * The suffix of the shard an import authors: `${nodeId}-import`. It is a distinct author,
+ * so an import can run while the node's server is live, and it only ever adds.
+ */
+export const IMPORT_SHARD_SUFFIX = "-import"
+
 /** Build the knowledge graph described by the environment. */
 export function createMemoryGraph(env: NodeJS.ProcessEnv = process.env): MemoryGraph {
   const config = loadConfig(env)
@@ -189,7 +195,10 @@ export async function collectionDecision(
       reason: "prune only: set NOONIEN_GC=true where this directory is written by this node alone",
     }
   }
-  const own = new Set([shardName(config.nodeId), shardName(`${config.nodeId}-import`)])
+  const own = new Set([
+    shardName(config.nodeId),
+    shardName(`${config.nodeId}${IMPORT_SHARD_SUFFIX}`),
+  ])
   const foreign = (await log.shards()).filter((name) => !own.has(name))
   if (foreign.length > 0) {
     return {
@@ -213,7 +222,9 @@ export async function collectionDecision(
  */
 export function createImportGraph(env: NodeJS.ProcessEnv = process.env): MemoryGraph {
   const config = loadConfig(env)
-  return new MemoryGraph(new ShardLog(createBackend(config), `${config.nodeId}-import`))
+  return new MemoryGraph(
+    new ShardLog(createBackend(config), `${config.nodeId}${IMPORT_SHARD_SUFFIX}`),
+  )
 }
 
 function parseBackend(value: string | undefined): BackendKind {

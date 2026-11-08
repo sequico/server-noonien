@@ -183,15 +183,15 @@ you can replace the `memory` server entry with `server-noonien` and change nothi
 
 ### `noonien` — the maintenance CLI
 
-| Command                 | Does                                                                                                                                                                                                                                                                                                           |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `noonien serve`         | run the MCP memory server over stdio (the same as `server-noonien`)                                                                                                                                                                                                                                            |
-| `noonien import <file>` | import an official `server-memory` JSONL file (writes its own `<node>-import` shard, so it runs online)                                                                                                                                                                                                        |
-| `noonien export`        | print the folded knowledge graph as JSON                                                                                                                                                                                                                                                                       |
-| `noonien merge`         | fold every shard and report the merged state                                                                                                                                                                                                                                                                   |
-| `noonien compact`       | maintain this node's shard now: prune shadowed operations and, only where it is safe, physically delete its tombstones — the same rule the server applies (`NOONIEN_GC`; with a daemon that owns the directory it keeps the whole view and leaves the shard to the daemon) — and report why when it keeps them |
-| `noonien query <text>`  | search entities and print the matching subgraph                                                                                                                                                                                                                                                                |
-| `noonien help`          | list the commands; `noonien --version` prints the version                                                                                                                                                                                                                                                      |
+| Command                 | Does                                                                                                                                                                                                                                                                                          |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `noonien serve`         | run the MCP memory server over stdio (the same as `server-noonien`)                                                                                                                                                                                                                           |
+| `noonien import <file>` | import an official `server-memory` JSONL file (writes its own `<node>-import` shard, so it runs online)                                                                                                                                                                                       |
+| `noonien export`        | print the folded knowledge graph as JSON                                                                                                                                                                                                                                                      |
+| `noonien merge`         | fold every shard and report the merged state                                                                                                                                                                                                                                                  |
+| `noonien compact`       | maintain this node's shard now — prune shadowed operations and, only where it is safe, physically delete its tombstones (the server's own rule: `NOONIEN_GC`; a daemon that owns the directory keeps the whole view and the shard) — and prune **every** `*-import` shard the directory holds |
+| `noonien query <text>`  | search entities and print the matching subgraph                                                                                                                                                                                                                                               |
+| `noonien help`          | list the commands; `noonien --version` prints the version                                                                                                                                                                                                                                     |
 
 ### `nooniend` — the daemon
 
@@ -421,7 +421,17 @@ re-importing is idempotent. That shard only ever adds, so it needs neither the p
 the `NOONIEN_GC` promise: `noonien import` prunes it on the way out, and `noonien compact` prunes
 it too — dropping the operations a later one shadowed, keeping every tombstone, and rewriting only
 when something was dropped, so a repeated maintenance costs nothing and no peer is asked to re-pull
-the shard. On the `file` backend, `append` and `compact` take a per-shard lock, so they serialize
+the shard.
+
+`noonien compact` prunes **every** `*-import` shard the directory holds, not only this node's. An
+import has no daemon behind it — the shard is written once, on whichever machine ran the import —
+and every node keeps a replica of it, so a peer's shadowed adds would otherwise stay contested in
+`read_conflicts` for ever: the peer that could have pruned them may be gone or renamed, and the
+element is no longer in the graph. Pruning a replica can lose nothing, from any node: an import
+shard only ever adds, and a tombstone is never dropped, so the folded graph is byte-identical after
+the pass and the pruned shard propagates in the next round.
+
+On the `file` backend, `append` and `compact` take a per-shard lock, so they serialize
 instead of racing even across processes — and the daemon takes the same lock. An append is synced
 before it is acknowledged, so a write the server has confirmed is on disk; a lock nobody refreshes
 is stolen, by its age in either direction, because a folder a syncer replicates can carry one
@@ -707,7 +717,9 @@ on: every occurrence of the old goes, the new is added once). `merge_entities` c
 — the union of their observations, their relations repointed — which is the operation a rename onto
 an existing name refuses to guess at; it is the way to un-do a duplicate a concurrent rename left
 behind. `read_conflicts` lists exactly those elements more than one node has written, with the
-authors, so a last-writer-wins resolution is visible instead of silent. `read_graph` and
+authors, so a last-writer-wins resolution is visible instead of silent — and the ones a migration
+leaves behind clear on the next `noonien compact` from any node, which prunes every `*-import`
+shard. `read_graph` and
 `search_nodes` accept an optional `limit`/`offset` (and `search_nodes` an `entityType` filter) so a
 large graph is read a page at a time — a page carries the relations touching its entities — and
 without those arguments the answer is byte-for-byte the one they gave before.

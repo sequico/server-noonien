@@ -99,6 +99,12 @@ async function mergeShards(): Promise<void> {
   )
 }
 
+/** One `*-import` shard a `compact` pass pruned, under its own author. */
+interface PrunedImport {
+  readonly shard: string
+  readonly result: PruneResult
+}
+
 /**
  * Maintain this node's shard in one pass: prune the operations a later one shadows and,
  * only where it is sound, physically drop the surviving tombstones.
@@ -123,7 +129,7 @@ export async function compactShard(env: NodeJS.ProcessEnv = process.env): Promis
   /** Why the tombstones were kept, when they were: written for the operator. */
   readonly reason: string | undefined
   /** Every `*-import` shard the directory holds, pruned under its own author. */
-  readonly imports: readonly { readonly shard: string; readonly result: PruneResult }[]
+  readonly imports: readonly PrunedImport[]
 }> {
   const config = loadConfig(env)
   const log = createShardLog(env)
@@ -143,7 +149,7 @@ export async function compactShard(env: NodeJS.ProcessEnv = process.env): Promis
   // knowledge nor the promise, so pruning it is always safe. Its author may long be gone —
   // the shard outlives the import — and the only thing that ever clears the conflicts a
   // migration leaves behind is dropping its shadowed operations, from any node.
-  const imports: { shard: string; result: PruneResult }[] = []
+  const imports: PrunedImport[] = []
   for (const shard of await log.shards()) {
     const node = nodeOfShard(shard)
     if (!node.endsWith(IMPORT_SHARD_SUFFIX)) {
@@ -157,6 +163,13 @@ export async function compactShard(env: NodeJS.ProcessEnv = process.env): Promis
     reason: decision.allowed ? undefined : decision.reason,
     imports,
   }
+}
+
+/** One line per pruned import shard, written for the operator. */
+function pruneLine({ shard, result }: PrunedImport): string {
+  return result.dropped === 0
+    ? `Pruned ${shard}: nothing to drop.`
+    : `Pruned ${shard}: dropped ${result.dropped} shadowed operation(s).`
 }
 
 async function query(text: string): Promise<void> {
@@ -201,20 +214,13 @@ export async function runCli(argv: string[]): Promise<void> {
       return
     case "compact": {
       const { shard, result, reason, imports } = await compactShard()
-      process.stdout.write(
+      const lines = [
         `Compacted ${shard}: ${result.before} -> ${result.after} operations ` +
-          `(${result.frozen} frozen).\n` +
-          (reason === undefined ? "" : `Tombstones kept — ${reason}.\n`) +
-          imports
-            .map(
-              ({ shard: name, result: pruned }) =>
-                `Pruned ${name}: ` +
-                (pruned.dropped === 0
-                  ? "nothing to drop.\n"
-                  : `dropped ${pruned.dropped} shadowed operation(s).\n`),
-            )
-            .join(""),
-      )
+          `(${result.frozen} frozen).`,
+        ...(reason === undefined ? [] : [`Tombstones kept — ${reason}.`]),
+        ...imports.map(pruneLine),
+      ]
+      process.stdout.write(`${lines.join("\n")}\n`)
       return
     }
     case "query":

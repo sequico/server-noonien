@@ -67,7 +67,7 @@ Everything else in this plan is implementation, decided here and not asked again
 | 8    | Instructions + read-through | `feat(tools): name the new tools at initialize` | `instructions` string, full re-read       |
 | 9    | Release 1.3.0               | `chore(main): release 1.3.0`                    | Release workflow, then the four nodes     |
 
-Steps 1–6 are independent of each other and of D1: 1.3.0 can ship with step 6 absent, and the upsert
+Steps 1–5 are independent of each other and of D1: 1.3.0 can ship without step 6, and the upsert
 follows as 1.3.1. That is the only contingency in this plan.
 
 ---

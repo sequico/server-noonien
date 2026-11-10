@@ -6,7 +6,8 @@ unit's content moves into `README.md` (tool table, CLI list) and `PLAN.md` (tool
 and the file is deleted. It never describes history, and never restates what those two already say.
 
 Usefulness order is the ranking below. **Implementation order is the work breakdown**, because two
-units wait on a decision and the read-only ones carry no risk.
+units wait on a decision and the read-only ones carry no risk. The numbers on the unit headings are
+this ranking, which is why the phases visit them out of order.
 
 | #   | Unit               | Surface                     | User value                        | Blocked by |
 | --- | ------------------ | --------------------------- | --------------------------------- | ---------- |
@@ -55,17 +56,17 @@ Everything else in this plan is implementation, decided here and not asked again
 
 ## Work breakdown
 
-| Step | Unit                        | Commit                                      | Notes                                     |
-| ---- | --------------------------- | ------------------------------------------- | ----------------------------------------- |
-| 1    | 1 `read_changes`            | `feat(tools): read only what changed`       | `graph.ts`, `server.ts`, `server.test.ts` |
-| 2    | 3 `expand_nodes`            | `feat(tools): expand a subgraph`            | reuses `incidentRelations`                |
-| 3    | 2a `search_nodes` ranking   | `feat(tools): rank search results`          | result set unchanged — asserted in a test |
-| 4    | 5 `find_duplicates`         | `feat(tools): propose duplicate entities`   | new pure module                           |
-| 5    | 6 `noonien stats`           | `feat(cli): report graph stats`             | one pass over the ops already read        |
-| 6    | 2b `search_nodes` matching  | `feat(tools): match every search term`      | **only if D1**                            |
-| 7    | 4 `set_observations`        | `feat(tools): upsert an observation by key` | **only if D2**                            |
-| 8    | Instructions + read-through | `docs(tools): describe the new surface`     | `instructions` string, full re-read       |
-| 9    | Release 1.3.0               | `chore(main): release 1.3.0`                | Release workflow, then the four nodes     |
+| Step | Unit                        | Commit                                          | Notes                                     |
+| ---- | --------------------------- | ----------------------------------------------- | ----------------------------------------- |
+| 1    | 1 `read_changes`            | `feat(tools): read only what changed`           | `graph.ts`, `server.ts`, `server.test.ts` |
+| 2    | 3 `expand_nodes`            | `feat(tools): expand a subgraph`                | reuses `incidentRelations`                |
+| 3    | 2a `search_nodes` ranking   | `feat(tools): rank search results`              | result set unchanged — asserted in a test |
+| 4    | 5 `find_duplicates`         | `feat(tools): propose duplicate entities`       | new pure module                           |
+| 5    | 6 `noonien stats`           | `feat(cli): report graph stats`                 | one pass over the ops already read        |
+| 6    | 2b `search_nodes` matching  | `feat(tools): match every search term`          | **only if D1**                            |
+| 7    | 4 `set_observations`        | `feat(tools): upsert an observation by key`     | **only if D2**                            |
+| 8    | Instructions + read-through | `feat(tools): name the new tools at initialize` | `instructions` string, full re-read       |
+| 9    | Release 1.3.0               | `chore(main): release 1.3.0`                    | Release workflow, then the four nodes     |
 
 Steps 1–5 are independent of each other and of D1/D2: 1.3.0 can ship with steps 6–7 absent, which
 then follow as 1.3.1. That is the only contingency in this plan.
@@ -74,7 +75,8 @@ then follow as 1.3.1. That is the only contingency in this plan.
 
 ## Phase: reads
 
-Read-only, over the memoized fold, each adding one row to the tool table.
+Read-only, over the memoized fold: each new tool adds its row to the tool table, and 2a edits the
+`search_nodes` one.
 
 ### 1. `read_changes` — what moved since the last visit
 

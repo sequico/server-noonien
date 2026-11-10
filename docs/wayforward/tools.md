@@ -12,18 +12,18 @@ Usefulness first. The body follows the **order of work**, which is not this orde
 first because they lock what the nine answer, then the reads, then the two extensions that close gaps
 in what already exists. The table's numbers are this ranking; the section numbers are the work order.
 
-| #   | Change                                                                | Kind                | Blocked by |
-| --- | --------------------------------------------------------------------- | ------------------- | ---------- |
-| 1   | `read_changes` — a window of what moved instead of the whole graph    | new read tool       | —          |
-| 2   | `find_nodes` — a search that finds what a person meant to type        | new read tool       | —          |
-| 3   | `expand_nodes` — a neighbourhood N hops out, for context assembly     | new read tool       | —          |
-| 4   | `resolve_conflict` — settle an element two machines wrote             | new write tool      | —          |
-| 5   | `find_duplicates` — proposals for the same thing under two names      | new read tool       | —          |
-| 6   | `read_history` — who wrote this, and when                             | new read tool       | —          |
-| 7   | `set_observations` — one fact kept current instead of a pile of twins | new write tool      | D1         |
-| 8   | `read_conflicts` — the values seen, not just the authors              | output of extension | —          |
-| 9   | `noonien stats` — the numbers an operator acts on, with `--json`      | CLI                 | —          |
-| 10  | Three pointing sentences on the nine, so the new tools are found      | description text    | —          |
+| #   | Change                                                                | Kind                |
+| --- | --------------------------------------------------------------------- | ------------------- |
+| 1   | `read_changes` — a window of what moved instead of the whole graph    | new read tool       |
+| 2   | `find_nodes` — a search that finds what a person meant to type        | new read tool       |
+| 3   | `expand_nodes` — a neighbourhood N hops out, for context assembly     | new read tool       |
+| 4   | `resolve_conflict` — settle an element two machines wrote             | new write tool      |
+| 5   | `find_duplicates` — proposals for the same thing under two names      | new read tool       |
+| 6   | `read_history` — who wrote this, and when                             | new read tool       |
+| 7   | `set_observations` — one fact kept current instead of a pile of twins | new write tool      |
+| 8   | `read_conflicts` — the values seen, not just the authors              | output of extension |
+| 9   | `noonien stats` — the numbers an operator acts on, with `--json`      | CLI                 |
+| 10  | Three pointing sentences on the nine, so the new tools are found      | description text    |
 
 ## Ground rules
 
@@ -45,15 +45,16 @@ in what already exists. The table's numbers are this ranking; the section number
 - **The gate runs once, before the push** (project rule), on the whole tree. Unit commits are read
   back by hand.
 
-## Decisions required
+## Decisions taken
 
-- **D1 — accept the `key: value` convention for `set_observations`?** Recommended: yes, stated in the
-  tool description. It is the price of a one-call upsert without changing the entity shape.
-- **D2 — release shape.** Recommended: one minor, **1.3.0**, after everything, `CHANGELOG` heading cut
-  by hand, Release workflow run once.
-- **D3 — may the guards enter CI?** The link check and the README-drift check are new steps in
-  `.github/workflows/`, which the project law puts behind the owner's approval. Recommended: yes, in
-  `ci.yml`; without them the guards run only when someone remembers.
+- **D1 — the `key: value` convention for `set_observations`: accepted (owner, 2026-11-10).** The tool
+  states it in its description, and a key containing `: ` is refused rather than left to mean two
+  things.
+- **D2 — release shape: one minor, 1.3.0 (owner, 2026-11-10).** Everything ships together, the
+  `CHANGELOG` heading is cut by hand, the Release workflow runs once.
+- **D3 — the guards enter CI: approved (owner, 2026-11-10).** The link check and the README-drift check
+  become steps in `ci.yml`; this is the approval the project law requires for a workflow change, and it
+  covers these two steps only.
 
 Everything else in this plan is implementation, decided here and not asked again.
 
@@ -72,18 +73,18 @@ Everything else in this plan is implementation, decided here and not asked again
 | 7    | `resolve_conflict`            | `feat(tools): settle a contested element`                | existing operation types only                  |
 | 8    | `find_duplicates`             | `feat(tools): propose duplicate entities`                | `by: name \| content`                          |
 | 9    | `read_history`                | `feat(tools): trace who wrote an entity and when`        | reads the log, not the fold                    |
-| 10   | `set_observations`            | `feat(tools): upsert an observation by key`              | **only if D1**                                 |
+| 10   | `set_observations`            | `feat(tools): upsert an observation by key`              | D1 accepted                                    |
 | 11   | Three pointing sentences      | `docs(tools): point each search at its better sibling`   | `search_nodes`, `read_graph`, `merge_entities` |
 | 12   | `noonien stats --json`        | `feat(cli): report graph stats`                          | one pass over the ops already read             |
 | 13   | README drift in the preflight | `feat(release): fail when a tool is not documented`      | reads `tools/list` from the built server       |
-| 14   | Link check                    | `feat(repo): fail on a relative link that leads nowhere` | **D3** for the CI step                         |
+| 14   | Link check                    | `feat(repo): fail on a relative link that leads nowhere` | in `ci.yml` (D3)                               |
 | 15   | Public docs review            | `docs: bring the public surface to 1.3.0`                | the artifact table below                       |
 | 16   | `instructions`                | `feat(tools): name the new tools at initialize`          | one sentence, one commit                       |
 | 17   | Release 1.3.0                 | `chore(main): release 1.3.0`                             | Release workflow, then the four nodes          |
 | 18   | Measure the TDQS              | — (no commit unless the text changes)                    | the feedback loop the text needs               |
 
-Steps 3–10 are independent of one another. If D1 is no, step 10 drops and the release ships without
-it; if D3 is no, steps 13 and 14 still ship as scripts run by hand before the release.
+Steps 3–10 are independent of one another, and every one of them ships: the plan has no conditional
+step left.
 
 ---
 
@@ -280,7 +281,7 @@ Tests: an entity's own operations appear newest first; a relation appears under 
 
 **Removal:** if nobody asks "how old is this", it costs one registration.
 
-### 10 · `set_observations` — one fact kept current (needs D1)
+### 10 · `set_observations` — one fact kept current
 
 ```jsonc
 { "entries": [{ "entityName": "Glama", "key": "listed version", "value": "1.2.0" }] }
@@ -334,7 +335,8 @@ agrees with the text; an empty graph answers zeroes.
 `scripts/release-check.mjs` already proves versions and packaged bins agree. Add: spawn the built
 server, read `tools/list`, and compare its names with the README tool table — a registered tool missing
 from the table, or a row naming a tool that no longer exists, fails the preflight. The same pass
-asserts that `instructions` names every extension tool.
+asserts that `instructions` names every extension tool. It runs in `ci.yml` too (D3), on the build CI
+already produces, so a pull request that adds a tool without its row is red before it is merged.
 
 Tests: the check fails on a fixture where one name is removed from the table, and passes on the tree.
 
@@ -342,7 +344,7 @@ Tests: the check fails on a fixture where one name is removed from the table, an
 
 Every relative Markdown link resolves, from the directory of the file that carries it. `node
 scripts/links.mjs` walks the tracked `.md` files, resolves each target, and prints what is broken; the
-preflight runs it, and CI runs it when D3 says yes — the two moves of this week broke four links, and
+preflight runs it and `ci.yml` runs it too (D3) — the two moves of this week broke four links, and
 nothing noticed.
 
 Tests: a fixture directory with one broken link fails; the repository passes.
@@ -354,20 +356,20 @@ surface, reviewed once, after the last unit, as a **read** rather than a search-
 sentence that names a tool, counts them or names a command is compared with the tree, and a claim that
 cannot be checked there is rewritten or deleted.
 
-| Artifact                                | What it must say after 1.3.0                                                                                                                                                                     | Action           |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
-| `README.md`                             | seven new rows in the tool table (six without D1); `stats` and `--json` in the CLI list; the two searches and how they differ; `read_changes`'s window; the Documentation list without this file | edit             |
-| `docs/plan.md`                          | the new rows in the tool surface table with their kind; `stats` in the CLI list; _Current state_ naming the new reads; the decision that a better search is a tool beside the nine               | edit             |
-| `CHANGELOG.md`                          | `Unreleased` cut into `1.3.0` with its date, the lines the units wrote plus the one already on main for the enriched descriptions                                                                | edit             |
-| `CONTRIBUTING.md`                       | the drop-in paragraph lists the extensions: it must list the new ones                                                                                                                            | edit             |
-| `mcpb/manifest.json`                    | `long_description` names the extensions — add these; never the version, release-please owns it                                                                                                   | edit description |
-| `AGENTS.md`                             | the compatibility contract names the current extensions — project law, so the owner approves the wording                                                                                         | edit with owner  |
-| `docs/wayforward/scaling.md`            | the measured read cost and the "page the surface" advice still hold; the new reads do not contradict them                                                                                        | verify           |
-| `.opencode/skills/noonien-dev/SKILL.md` | the developer skill names the tools and commands it teaches                                                                                                                                      | edit             |
-| `server.json`                           | the registry listing carries no tool names; its version fields are bumped by release-please                                                                                                      | verify           |
-| `docs/protocol.md`                      | no wire message, header or route changed — this release adds no daemon surface                                                                                                                   | verify           |
-| `docs/paper.md`                         | **frozen at 1.0.0**: it says "the same nine tools", which stays true, and its one mention of `PLAN.md` stays a name                                                                              | do not touch     |
-| `docs/wayforward/tools.md`              | this file, deleted once its content lives in README and PLAN                                                                                                                                     | delete           |
+| Artifact                                | What it must say after 1.3.0                                                                                                                                                       | Action           |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `README.md`                             | seven new rows in the tool table; `stats` and `--json` in the CLI list; the two searches and how they differ; `read_changes`'s window; the Documentation list without this file    | edit             |
+| `docs/plan.md`                          | the new rows in the tool surface table with their kind; `stats` in the CLI list; _Current state_ naming the new reads; the decision that a better search is a tool beside the nine | edit             |
+| `CHANGELOG.md`                          | `Unreleased` cut into `1.3.0` with its date, the lines the units wrote plus the one already on main for the enriched descriptions                                                  | edit             |
+| `CONTRIBUTING.md`                       | the drop-in paragraph lists the extensions: it must list the new ones                                                                                                              | edit             |
+| `mcpb/manifest.json`                    | `long_description` names the extensions — add these; never the version, release-please owns it                                                                                     | edit description |
+| `AGENTS.md`                             | the compatibility contract names the current extensions — project law, so the owner approves the wording                                                                           | edit with owner  |
+| `docs/wayforward/scaling.md`            | the measured read cost and the "page the surface" advice still hold; the new reads do not contradict them                                                                          | verify           |
+| `.opencode/skills/noonien-dev/SKILL.md` | the developer skill names the tools and commands it teaches                                                                                                                        | edit             |
+| `server.json`                           | the registry listing carries no tool names; its version fields are bumped by release-please                                                                                        | verify           |
+| `docs/protocol.md`                      | no wire message, header or route changed — this release adds no daemon surface                                                                                                     | verify           |
+| `docs/paper.md`                         | **frozen at 1.0.0**: it says "the same nine tools", which stays true, and its one mention of `PLAN.md` stays a name                                                                | do not touch     |
+| `docs/wayforward/tools.md`              | this file, deleted once its content lives in README and PLAN                                                                                                                       | delete           |
 
 The registries follow the release: npm renders the README from the tarball, the MCP Registry publishes
 the tagged `server.json`, and Glama re-syncs and re-scores on its own schedule.

@@ -45,6 +45,13 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
+      # Documentation is part of the tree: a link that leads nowhere, or a tool the
+      # server registers and the README table does not list, is a red build (owner
+      # approval, 2026-11-10).
+      - name: Check relative links in the documentation
+        run: node scripts/links.mjs
+      - name: Check the README documents every registered tool
+        run: node scripts/release-check.mjs --tools-only
       - name: Verify the packed tarball ships every bin entry point
         run: |
           npm pack

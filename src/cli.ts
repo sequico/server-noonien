@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { readFile } from "node:fs/promises"
+import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises"
+import { join } from "node:path"
 import { parseArgs } from "node:util"
 import {
   collectionDecision,
@@ -34,6 +35,10 @@ Commands:
   merge              Fold every shard and report the merged state
   compact            Maintain this node's shards and every *-import shard now; delete
                      tombstones only where it is safe
+  stats              Count the graph, name the biggest entities, list what nobody has
+                     confirmed in 90 days (--json for a machine)
+  doctor             Verify the store: parse errors, torn lines, orphan relations,
+                     stale shards. Read-only; exits 1 on a defect
   query <text>       Search entities and print the matching subgraph
   help               Show this help
 
@@ -41,12 +46,16 @@ Environment:
   NOONIEN_BACKEND   file (default), memory or s3
   NOONIEN_DIR       shard directory (default ~/.noonien; a leading ~ expands)
   NOONIEN_NODE_ID   this node's shard name (default the hostname)
-  NOONIEN_COMPACT_AFTER   maintain the shard online after N appends (default 1000, 0 off)
+  NOONIEN_COMPACT_AFTER   maintain the shard after N appends (default 1000, 0 off)
+  NOONIEN_COMPACT_BYTES   maintain the shard after it grows by N bytes (default 8 MiB, 0 off)
   NOONIEN_GC        delete tombstones without a daemon (only where this node is the directory's
                      only writer; default off) — see NOONIEND_* for the daemon
   NOONIEN_S3_BUCKET, NOONIEN_S3_PREFIX, NOONIEN_S3_REGION,
   NOONIEN_S3_ENDPOINT, NOONIEN_S3_FORCE_PATH_STYLE
 `
+
+/** How many dated snapshots `export --out` keeps when none is asked for. */
+const EXPORT_KEEP_DEFAULT = 7
 
 /**
  * Import an official `server-memory` JSONL file into this node's `<node>-import` shard,
@@ -79,9 +88,77 @@ export async function importFile(
   )
 }
 
-async function exportGraph(): Promise<void> {
+async function exportGraph(out: string | undefined, keep: number, dryRun: boolean): Promise<void> {
   const graph = await createMemoryGraph().readGraph()
-  process.stdout.write(`${JSON.stringify(graph, null, 2)}\n`)
+  const text = `${JSON.stringify(graph, null, 2)}\n`
+  if (out === undefined) {
+    process.stdout.write(text)
+    return
+  }
+  const directory = out
+  const existing = await snapshotNames(directory)
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-")
+  const file = join(directory, `graph-${stamp}.json`)
+  if (keep > 0) {
+    // The new snapshot makes `existing.length + 1`, so the oldest beyond `keep` go.
+    const doomed = existing.slice(0, Math.max(existing.length + 1 - keep, 0))
+    for (const name of doomed) {
+      process.stdout.write(`${dryRun ? "would delete" : "deleting"} ${join(directory, name)}\n`)
+      if (!dryRun) {
+        await unlink(join(directory, name))
+      }
+    }
+  }
+  if (dryRun) {
+    process.stdout.write(`would write ${file}\n`)
+    return
+  }
+  await mkdir(directory, { recursive: true })
+  // `wx` refuses to clobber: a snapshot that silently replaces another is not one.
+  await writeFile(file, text, { flag: "wx" })
+  process.stdout.write(`${file}\n`)
+}
+
+/** The dated snapshots a directory already holds, oldest first. */
+async function snapshotNames(directory: string): Promise<string[]> {
+  try {
+    const names = await readdir(directory)
+    return names.filter((name) => /^graph-.*\.json$/.test(name)).sort()
+  } catch {
+    return []
+  }
+}
+
+/** The operator's numbers over the folded graph, as one screen or one JSON object. */
+async function stats(json: boolean): Promise<void> {
+  const value = await createMemoryGraph().stats()
+  if (json) {
+    process.stdout.write(`${JSON.stringify(value, null, 2)}\n`)
+    return
+  }
+  const largest = value.largest.map((entry) => `${entry.name} ${entry.observations}`).join(", ")
+  const types = value.byType.map((entry) => `${entry.entityType} ${entry.entities}`).join(", ")
+  const lines = [
+    `entities ${value.entities} · relations ${value.relations} · observations ${value.observations} · operations ${value.operations} · deletions ${value.deletions}`,
+    `largest: ${largest === "" ? "(none)" : largest}`,
+    `types: ${types === "" ? "(none)" : types}`,
+    `last mutation: ${value.lastMutation ?? "(none)"}`,
+    `stale (90d): ${value.stale.length}${value.stale.length > 0 ? ` — ${value.stale.slice(0, 5).join(", ")}` : ""}`,
+  ]
+  process.stdout.write(`${lines.join("\n")}\n`)
+}
+
+/** Verify the store; the exit code is the answer a script reads. */
+async function doctor(): Promise<number> {
+  const report = await createShardLog().inspect()
+  const lines = [
+    `shards ${report.shards} · operations ${report.operations} · parse errors ${report.parseErrors} · torn lines ${report.tornLines}`,
+    `orphan relations ${report.orphanRelations} · unmoved shards ${report.unmovedShards.length}` +
+      (report.unmovedShards.length > 0 ? ` (${report.unmovedShards.join(", ")})` : ""),
+    `fold ${report.foldMilliseconds} ms`,
+  ]
+  process.stdout.write(`${lines.join("\n")}\n`)
+  return report.parseErrors > 0 || report.tornLines > 0 || report.orphanRelations > 0 ? 1 : 0
 }
 
 async function mergeShards(): Promise<void> {
@@ -188,6 +265,10 @@ export async function runCli(argv: string[]): Promise<void> {
     options: {
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
+      out: { type: "string" },
+      keep: { type: "string" },
+      json: { type: "boolean" },
+      "dry-run": { type: "boolean" },
     },
   })
   if (values.version === true) {
@@ -207,7 +288,17 @@ export async function runCli(argv: string[]): Promise<void> {
       await importFile(rest[0])
       return
     case "export":
-      await exportGraph()
+      await exportGraph(
+        values.out,
+        parseInt(values.keep ?? String(EXPORT_KEEP_DEFAULT), 10),
+        values["dry-run"] === true,
+      )
+      return
+    case "stats":
+      await stats(values.json === true)
+      return
+    case "doctor":
+      process.exitCode = await doctor()
       return
     case "merge":
       await mergeShards()

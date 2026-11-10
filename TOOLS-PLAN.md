@@ -5,28 +5,30 @@ order, one release. This document is **forward-looking** — it exists until 1.3
 unit's content moves into `README.md` (tool table, CLI list) and `PLAN.md` (tool surface, decisions)
 and the file is deleted. It never describes history, and never restates what those two already say.
 
-Usefulness order is the ranking below. **Implementation order is the work breakdown**, because two
-units wait on a decision and the read-only ones carry no risk. The numbers on the unit headings are
+Usefulness order is the ranking below. **Implementation order is the work breakdown**, because one
+unit waits on a decision and the read-only ones carry no risk. The numbers on the unit headings are
 this ranking, which is why the phases visit them out of order.
 
-| #   | Unit               | Surface                     | User value                        | Blocked by |
-| --- | ------------------ | --------------------------- | --------------------------------- | ---------- |
-| 1   | `read_changes`     | new read tool               | the whole graph per turn → a page | —          |
-| 2   | `search_nodes`     | behaviour of a drop-in tool | a query that finds things         | D1 for 2b  |
-| 3   | `expand_nodes`     | new read tool               | context assembly in N hops        | —          |
-| 4   | `set_observations` | new write tool              | no more contradictory twins       | D2         |
-| 5   | `find_duplicates`  | new read tool               | makes `merge_entities` usable     | —          |
-| 6   | `noonien stats`    | CLI subcommand              | decides when to compact           | —          |
+| #   | Unit               | Surface        | User value                        | Blocked by |
+| --- | ------------------ | -------------- | --------------------------------- | ---------- |
+| 1   | `read_changes`     | new read tool  | the whole graph per turn → a page | —          |
+| 2   | `find_nodes`       | new read tool  | a query that finds things         | —          |
+| 3   | `expand_nodes`     | new read tool  | context assembly in N hops        | —          |
+| 4   | `set_observations` | new write tool | no more contradictory twins       | D1         |
+| 5   | `find_duplicates`  | new read tool  | makes `merge_entities` usable     | —          |
+| 6   | `noonien stats`    | CLI subcommand | decides when to compact           | —          |
 
 `stats` is a CLI subcommand and not a tool: its consumer is the operator, who already runs `noonien`,
-and an MCP tool for an operator fact would widen the surface an agent reads for nothing. The three
-read tools serve an agent inside a turn, which is where they earn their place.
+and an MCP tool for an operator fact would widen the surface an agent reads for nothing.
 
 ## Ground rules
 
-- **The nine stay the nine.** No unit adds, removes or renames an input on a drop-in tool; none
-  introduces an operation type. `set_observations` is expressed with `observation.add` and
-  `observation.delete`, so the codec, the fold and the CRDT are untouched by all six.
+- **The nine stay the nine, literally.** No unit changes a drop-in tool — not its inputs, not its
+  outputs, not the order of them. The new behaviour always arrives as a tool beside the nine, which
+  is how `update_*`, `merge_entities` and `read_conflicts` already work. A client of the official
+  server calls the nine and never notices the rest exists.
+- **No unit introduces an operation type.** `set_observations` is expressed with `observation.add`
+  and `observation.delete`, so the codec, the fold and the CRDT are untouched by all six.
 - **Extensions sit beside them**, named so a client of the official server never calls one by
   accident.
 - **Descriptions carry the behaviour**, in the current style: the official sentence where one exists,
@@ -41,12 +43,9 @@ read tools serve an agent inside a turn, which is where they earn their place.
 
 ## Decisions required before the units they block
 
-- **D1 — may `search_nodes` change its result set?** 2a (order only) needs no answer. 2b (AND over
-  token prefixes) makes the nine behave differently from the official server for multi-word queries.
-  Recommended: yes — the contract's value is names, inputs and outputs, not a predicate.
-- **D2 — accept the `key: value` convention for `set_observations`?** Recommended: yes, stated in the
+- **D1 — accept the `key: value` convention for `set_observations`?** Recommended: yes, stated in the
   tool description. It is the price of a one-call upsert without changing the entity shape.
-- **D3 — release shape.** Recommended: one minor, **1.3.0**, after all six, `CHANGELOG` heading cut
+- **D2 — release shape.** Recommended: one minor, **1.3.0**, after all six, `CHANGELOG` heading cut
   by hand, Release workflow run once. A release per unit multiplies the four-node deploy for no
   user-visible gain.
 
@@ -59,24 +58,22 @@ Everything else in this plan is implementation, decided here and not asked again
 | Step | Unit                        | Commit                                          | Notes                                     |
 | ---- | --------------------------- | ----------------------------------------------- | ----------------------------------------- |
 | 1    | 1 `read_changes`            | `feat(tools): read only what changed`           | `graph.ts`, `server.ts`, `server.test.ts` |
-| 2    | 3 `expand_nodes`            | `feat(tools): expand a subgraph`                | reuses `incidentRelations`                |
-| 3    | 2a `search_nodes` ranking   | `feat(tools): rank search results`              | result set unchanged — asserted in a test |
-| 4    | 5 `find_duplicates`         | `feat(tools): propose duplicate entities`       | new pure module                           |
+| 2    | 2 `find_nodes`              | `feat(tools): a search that finds things`       | new pure module `src/graph/search.ts`     |
+| 3    | 3 `expand_nodes`            | `feat(tools): expand a subgraph`                | reuses `incidentRelations`                |
+| 4    | 5 `find_duplicates`         | `feat(tools): propose duplicate entities`       | new pure module `src/graph/duplicates.ts` |
 | 5    | 6 `noonien stats`           | `feat(cli): report graph stats`                 | one pass over the ops already read        |
-| 6    | 2b `search_nodes` matching  | `feat(tools): match every search term`          | **only if D1**                            |
-| 7    | 4 `set_observations`        | `feat(tools): upsert an observation by key`     | **only if D2**                            |
-| 8    | Instructions + read-through | `feat(tools): name the new tools at initialize` | `instructions` string, full re-read       |
-| 9    | Release 1.3.0               | `chore(main): release 1.3.0`                    | Release workflow, then the four nodes     |
+| 6    | 4 `set_observations`        | `feat(tools): upsert an observation by key`     | **only if D1**                            |
+| 7    | Instructions + read-through | `feat(tools): name the new tools at initialize` | `instructions` string, full re-read       |
+| 8    | Release 1.3.0               | `chore(main): release 1.3.0`                    | Release workflow, then the four nodes     |
 
-Steps 1–5 are independent of each other and of D1/D2: 1.3.0 can ship with steps 6–7 absent, which
-then follow as 1.3.1. That is the only contingency in this plan.
+Steps 1–5 are independent of each other and of D1: 1.3.0 can ship with step 6 absent, and the upsert
+follows as 1.3.1. That is the only contingency in this plan.
 
 ---
 
 ## Phase: reads
 
-Read-only, over the memoized fold: each new tool adds its row to the tool table, and 2a edits the
-`search_nodes` one.
+Read-only, over the memoized fold: each adds its row to the tool table.
 
 ### 1. `read_changes` — what moved since the last visit
 
@@ -126,6 +123,39 @@ Risk: a whole-log fold makes the first call after a change no cheaper than `read
 operations it is single-digit milliseconds and the memoized fold covers repeats. Past that, the next
 step is replaying only the new operations onto the cached graph, which changes no contract.
 
+### 2. `find_nodes` — a search that finds things
+
+`search_nodes` is a lowercased substring over name, type and observations, returned in name order. So
+`"port redis"` finds nothing, `"ports"` does not find `port`, and the best hit is wherever the
+alphabet puts it. That tool is the official one and it does not move; the search an agent would
+actually type gets its own:
+
+```jsonc
+// input — query required, the rest optional
+{ "query": "port redis", "entityType": "host", "limit": 20, "offset": 0 }
+// output — the usual graph shape, best first
+{ "entities": [/* matching entities, ranked */], "relations": [/* incident */] }
+```
+
+- The query is split into terms on non-alphanumerics; **every** term must match, and a term matches a
+  token by prefix (`nooni` → `nooniend`, `ports` → `port`).
+- Ranked: exact name, then name prefix, then type, then observation; the earliest match position
+  breaks ties inside a field, then name. `limit`/`offset` page the ranked list, so a page is stable
+  for an unchanged graph.
+- A term matches a **token prefix**, so `port` finds `ports` and not `support`: the two searches
+  differ, and neither is a superset of the other. `search_nodes` still answers the literal-substring
+  question, which is why it stays exactly as it is instead of being replaced.
+- `entityType` filters to one exact type, as on `search_nodes`.
+
+Implementation: pure `src/graph/search.ts` (`terms`, `scoreEntity`) called from a new `findNodes` on
+`MemoryGraph`; registration with `annotationsRead` and the usual `KnowledgeGraph` output schema.
+
+Tests: a name hit outranks an observation hit; prefix and token matching; a multi-word query that
+finds nothing today now finds the entity; a term inside a longer word (`port` in `support`) is found
+by `search_nodes` and not by `find_nodes` — the case that keeps both tools; an empty query returns
+everything in name order, as `search_nodes` does; paging over a ranked list; and one test asserting
+`search_nodes` still answers exactly what it answered before this plan.
+
 ### 3. `expand_nodes` — the neighbourhood, not the whole graph
 
 Context assembly is a walk, and there is none. `open_nodes` returns the entity and its incident
@@ -150,15 +180,6 @@ entities are then sorted by name for a stable response.
 
 Tests: depth 1 equals `open_nodes`; direction is ignored; a cycle terminates; `limit` sets
 `truncated`; unknown names are skipped.
-
-### 2a. `search_nodes` — ranked results
-
-Today it is a lowercased substring over name, type and observations, returned in name order. 2a
-scores the same set and returns the best first: exact name, then name prefix, then type, then
-observation, the earliest match breaking ties, then name. `limit`/`offset` page the ranked list.
-
-The **set** stays identical and a test asserts it: that is what keeps the drop-in claim honest. The
-order changes — accepted, and stated in the README, since order was never the contract's value.
 
 ### 5. `find_duplicates` — the graph's rot, proposed not applied
 
@@ -222,21 +243,9 @@ entities; an empty graph prints zeroes rather than failing.
 
 ---
 
-## Phase: search matching and the upsert, both conditional
+## Phase: the upsert, conditional
 
-### 2b. `search_nodes` — every term must match (needs D1)
-
-Tokenise the query, require every term, and let a term match a token by prefix (`nooni` matches
-`nooniend`, `ports` matches `port`). Single-term queries stay a superset of today's results;
-multi-term queries become an AND instead of a literal substring that almost never hits.
-
-Implementation: 2a and 2b share a pure `src/graph/search.ts` (`terms`, `scoreEntity`), called from
-`searchNodes`; no schema change either way.
-
-Tests: score order for a name hit against an observation hit; prefix and token behaviour; an empty
-query keeps today's behaviour; paging over a ranked list.
-
-### 4. `set_observations` — keep one fact current (needs D2)
+### 4. `set_observations` — keep one fact current (needs D1)
 
 ```jsonc
 // input
@@ -270,17 +279,19 @@ structured observation, breaks the entity shape and the drop-in contract.
 ## Phase: ship
 
 - **`instructions`** in `src/server.ts` gains one sentence naming the new read tools and
-  `set_observations`, in the voice it already uses: a model calls a tool only if it knows it exists.
-  The nine stay the frame. This is the only thing the units cannot do in their own commit, because
-  one sentence covers all of them.
+  `set_observations`, in the voice it already uses: a model calls a tool only if it knows it exists,
+  and this is the only way a client learns that `find_nodes` exists beside `search_nodes`. The nine
+  stay the frame. This is the one thing the units cannot do in their own commit, because one
+  sentence covers all of them.
 - **Release**: the `Unreleased` heading cut by hand into `1.3.0` with its date, then one
   `workflow_dispatch` run of the Release workflow — never `npm publish` by hand. Then redeploy the
   four nodes on 1.3.0 and verify the version and the listener from `ai`.
 
 ## Out of scope
 
-Restated so a later reader does not re-litigate them: no atomic multi-operation batch (atomicity is
-not a requirement of an AP model and sequential calls work), no TTL or automatic forgetting (a
-shared memory is corrected, not expired), no embeddings or vector search (a model and an index mean a
-server — a different product), no entity aliases (a convention, not a primitive, and
+Restated so a later reader does not re-litigate them: no change to a drop-in tool's behaviour, even
+an improvement (the better search is a tool beside it); no atomic multi-operation batch (atomicity is
+not a requirement of an AP model and sequential calls work); no TTL or automatic forgetting (a shared
+memory is corrected, not expired); no embeddings or vector search (a model and an index mean a
+server — a different product); no entity aliases (a convention, not a primitive, and
 `set_observations` covers the recurring case).

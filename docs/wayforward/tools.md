@@ -433,6 +433,8 @@ fold 4 ms
 - Checks: every shard parses line by line; a torn final line is reported as such; relations whose
   endpoints are absent from the fold; payloads the codec does not know; shards that have not moved in
   longer than a stated window; the fold time.
+- **A shard that has not moved is reported, not judged**: an idle node is not a defect, and `doctor`
+  exits 0 on it. Only a parse failure or an operation the codec rejects is a defect.
 - Exit codes: 0 sound, 1 a defect, 2 unreadable store.
 
 Implementation: `doctor()` on the log (it can see shards and lines), a `doctor` case in `src/cli.ts`.
@@ -479,7 +481,9 @@ counts like one of 20 bytes, and the pass runs in front of the next write.
   so already exists.
 
 Implementation: `ShardLog` keeps the byte counter and the next-attempt time; `MemoryGraph` stops running
-maintenance inside `commit()` and asks the log whether a pass is due; the timer lives in `serve.ts`.
+maintenance inside `commit()` and asks the log whether a pass is due; the timer lives in `serve.ts`, and
+a pass is also attempted at startup when the shard is already over the threshold — a stdio server can
+end a session before its timer ever fires.
 
 Tests: the byte threshold trips; a pass under the threshold does not run; a failed pass backs off and
 does not retry on the next write; the graph folded after a timer pass equals the graph before it (the

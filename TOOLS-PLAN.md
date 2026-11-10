@@ -1,9 +1,9 @@
 # server-noonien — Tool extension plan (1.3.0)
 
-One plan for the additions to the surface an agent sees: one work breakdown, one order, one release.
-This document is **forward-looking** — it exists until 1.3.0 ships, then each unit's content moves
-into `README.md` (tool table, CLI list) and `PLAN.md` (tool surface, decisions) and the file is
-deleted. It never describes history, and never restates what those two already say.
+One plan for the additions to the surface an agent and its operator see: one work breakdown, one
+order, one release. This document is **forward-looking** — it exists until 1.3.0 ships, then each
+unit's content moves into `README.md` (tool table, CLI list) and `PLAN.md` (tool surface, decisions)
+and the file is deleted. It never describes history, and never restates what those two already say.
 
 Usefulness order is the ranking below. **Implementation order is the work breakdown**, because two
 units wait on a decision and the read-only ones carry no risk.
@@ -72,7 +72,7 @@ then follow as 1.3.1. That is the only contingency in this plan.
 
 ---
 
-## Phase: reads (steps 1–4)
+## Phase: reads
 
 Read-only, over the memoized fold, each adding one row to the tool table.
 
@@ -102,14 +102,17 @@ operation log already knows the answer.
   Revisits cost a few hundred bytes and repeat reads are idempotent; an exact `ts > since` would
   drop a peer's operation written with a lagging clock, and that is the failure that matters.
 - `since` absent means "the last five minutes".
+- **Touched** means named by an operation in the window: an entity create or delete, an observation
+  add or delete, or either endpoint of a relation add or delete.
 - **`deleted` is trustworthy** because collection drops only shadowed operations and never a
   tombstone: an entity deleted inside the window still has its evidence in the log.
 - `shard.compact` metadata operations are filtered out; they are not graph changes.
 
 Implementation: `changes(since, options)` in `src/graph/graph.ts` — touched set from `log.read()` by
-`ts`, then `currentGraph()` and filter; deleted = names with an `entity.delete` in the window that
-the fold no longer contains. Output schema is `KnowledgeGraphSchema.extend({ since, until, deleted })`
-in `server.ts`, the way every other tool's output schema is written there.
+`ts` and payload type, then `currentGraph()` and filter; deleted = names with an `entity.delete` in
+the window that the fold no longer contains. Output schema is
+`KnowledgeGraphSchema.extend({ since, until, deleted })` in `server.ts`, the way every other tool's
+output schema is written there.
 
 Tests: an op exactly at `since` is included; an entity created before the window and observed inside
 it arrives complete; a deletion inside the window is reported once and absent from `entities`; an
@@ -117,8 +120,8 @@ operation stamped five minutes behind is not lost; a `shard.compact` operation i
 nothing; paging over the touched set.
 
 Risk: a whole-log fold makes the first call after a change no cheaper than `read_graph`. At 10,000
-operations it is single-digit milliseconds and the memoized fold covers repeats; past that the answer
-is the incremental fold sketched in `SCALING.md`, not a different contract.
+operations it is single-digit milliseconds and the memoized fold covers repeats. Past that, the next
+step is replaying only the new operations onto the cached graph, which changes no contract.
 
 ### 3. `expand_nodes` — the neighbourhood, not the whole graph
 
@@ -138,8 +141,9 @@ instead of cutting silently; unknown names are skipped, as in `open_nodes`. Rela
 incident ones, the same rule every other read uses — so depth 1 answers exactly what `open_nodes`
 answers, plus `truncated`.
 
-Implementation: BFS in `src/graph/graph.ts` over an adjacency map built once per call, entities in
-name order for determinism.
+Implementation: BFS in `src/graph/graph.ts` over an adjacency map built once per call, neighbours
+visited in name order, so the cap drops the far frontier and never a close neighbour; the selected
+entities are then sorted by name for a stable response.
 
 Tests: depth 1 equals `open_nodes`; direction is ignored; a cycle terminates; `limit` sets
 `truncated`; unknown names are skipped.
@@ -159,8 +163,8 @@ The graph decays into near-duplicates (`nooniend`, `noonien daemon`, `nooniend.s
 `merge_entities` exists but needs the pair already known, so nobody calls it.
 
 ```jsonc
-// input
-{ "threshold": 0.75, "limit": 20, "entityType": null }
+// input — every field optional
+{ "threshold": 0.75, "limit": 20 }
 // output
 { "pairs": [{ "a": "nooniend", "b": "noonien daemon", "score": 0.81, "reasons": ["name", "observations"] }] }
 ```
@@ -171,8 +175,8 @@ greater winning; shared observation tokens raise the score and add a reason.
 
 **Blocking** keeps it from being quadratic: entities are bucketed by each name token, and a bucket
 compares at most its first 200 members (they are in name order), so the cost is bounded by
-`entities × tokens × 200` instead of `entities²`. A pair missed by the cap is a pair whose names
-share no early token, which the score would have ranked last anyway.
+`entities × tokens × 200` instead of `entities²`. That cap is a stated limit: a pair whose names
+share no token early in the ordering is not proposed.
 
 Read-only: the merge stays `merge_entities`.
 
@@ -188,12 +192,14 @@ Risk: proposals are heuristic and the bucket cap is a stated limit — hence no 
 
 ---
 
-## Phase: the CLI (step 5)
+## Phase: the CLI
 
 ### 6. `noonien stats` — the numbers an operator acts on
 
-Counts today live only in the daemon's `/metrics`, which needs a scrape setup to read. One command,
-one screen, over the same folded state:
+Counting the graph today means fetching a route and piping it through `jq`
+(`curl -s …/graph | jq '.entities|length'`), and the daemon's routes exist only where a daemon
+runs. One command, one screen, over the same folded state — ergonomics, not a new capability, which
+is why it comes last and is the easiest to drop:
 
 ```text
 entities 38 · relations 56 · observations 210 · operations 503 · deletions 71
@@ -212,7 +218,7 @@ entities; an empty graph prints zeroes rather than failing.
 
 ---
 
-## Phase: search matching and the upsert (steps 6–7, both conditional)
+## Phase: search matching and the upsert, both conditional
 
 ### 2b. `search_nodes` — every term must match (needs D1)
 
@@ -232,7 +238,7 @@ query keeps today's behaviour; paging over a ranked list.
 // input
 { "entries": [{ "entityName": "Glama", "key": "listed version", "value": "1.2.0" }] }
 // output
-{ "results": [{ "entityName": "Glama", "key": "listed version", "content": "listed version: 1.2.0", "action": "replaced", "replaced": 1 }] }
+{ "results": [{ "entityName": "Glama", "key": "listed version", "content": "listed version: 1.2.0", "action": "replaced" }] }
 ```
 
 - The observation is the content `key: value`; a key owns an observation when the content is exactly
@@ -245,10 +251,10 @@ query keeps today's behaviour; paging over a ranked list.
 - Implemented as `observation.delete` + `observation.add`, like `update_observations`; one commit,
   one notification.
 
-Tests: add then replace; two drifted duplicates collapse to one; `key: extra` is not taken for the
-key `key`; two entries on one key end in one observation; a missing entity reports per entry; the op
-log contains only the two existing payload types; convergence — the same set on two nodes converges
-and the later HLC wins.
+Tests: add then replace; two drifted duplicates collapse to one; `key:extra` without the space is
+not owned by the key `key`; two entries on one key end in one observation; a missing entity reports
+per entry; the op log contains only the two existing payload types; convergence — the same set on
+two nodes converges and the later HLC wins.
 
 Risk: the one unit that puts a convention into the data. An agent writing those observations by hand
 can leave a key nobody replaces — accepted and stated in the description; the alternative, a
@@ -256,7 +262,7 @@ structured observation, breaks the entity shape and the drop-in contract.
 
 ---
 
-## Phase: ship (steps 8–9)
+## Phase: ship
 
 - **`instructions`** in `src/server.ts` gains one sentence naming the new read tools and
   `set_observations`, in the voice it already uses: a model calls a tool only if it knows it exists.

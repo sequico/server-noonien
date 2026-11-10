@@ -383,11 +383,11 @@ a mutation notifies a subscriber; the body equals `read_changes` for the same wi
 
 ### 14 · Three pointing sentences
 
-The nine keep their text except for one sentence each on the three where a better sibling now exists —
-`search_nodes` → `find_nodes`, `read_graph` → `read_changes`, `merge_entities` → "cannot be undone;
-`find_duplicates` proposes the pairs, and `dryRun` shows what would change". (`create_entities` already
-says that an existing name is skipped, so it needs nothing.) Without these, the new tools exist for the
-agent that already knows them.
+The nine keep their text except for one sentence each on the three where a better sibling now exists:
+`search_nodes` → `find_nodes`, `read_graph` → `read_changes`, `merge_entities` → the dry run and
+`find_duplicates`. The three sentences are written out in _The words an agent reads_, not here, so there
+is one version of each. (`create_entities` already says that an existing name is skipped, so it needs
+nothing.) Without them, the new tools exist only for the agent that already knows them.
 
 Tests: the contract test of step 2 still passes — that is what proves the sentences are prose only.
 

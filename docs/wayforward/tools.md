@@ -353,7 +353,7 @@ Tests: the check fails on a fixture where one name is removed from the table, an
 
 Every relative Markdown link resolves, from the directory of the file that carries it. `node
 scripts/links.mjs` walks the tracked `.md` files, resolves each target, and prints what is broken; the
-preflight runs it and `ci.yml` runs it too (D3) — the two moves of this week broke four links, and
+preflight runs it and `ci.yml` runs it too (D3) — a file that moves takes its links down silently, and
 nothing noticed.
 
 Tests: a fixture directory with one broken link fails; the repository passes.
@@ -402,7 +402,7 @@ The text in _The words an agent reads_ is written for a score nobody has seen ye
 the release, read the per-tool TDQS and record which dimension is still low — Behaviour, Usage or
 Parameters — in the internal registry notes, then fix that dimension's sentences in a follow-up commit.
 Nothing is written back into this file: it is deleted at the release. Without this step the writing is
-done blind, which is how it was done the first time.
+done blind.
 
 ---
 

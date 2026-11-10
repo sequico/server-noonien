@@ -141,8 +141,9 @@ it arrives complete; a deletion inside the window is reported once and absent fr
 operation stamped five minutes behind is not lost; a future `since` is clamped; `shard.compact`
 changes nothing; paging is stable.
 
-Risk: a whole-log fold makes the first call after a change no cheaper than `read_graph` — single-digit
-milliseconds at 10,000 operations, and the memoized fold covers repeats.
+Risk: a whole-log fold makes the first call after a change no cheaper than `read_graph` — it is the
+shape of the log that decides, not the page asked for. The memoized fold covers repeats, and a log
+large enough to hurt is the case `docs/wayforward/scaling.md` already addresses.
 
 ### 4 · `find_nodes` — a search that finds things
 
@@ -305,7 +306,9 @@ Tests: add then replace; two drifted twins collapse to one; `key:extra` is not o
 with `: ` is refused; two entries on one key end in one observation; a missing entity reports per
 entry; only the two existing payload types appear; convergence holds and the later stamp wins.
 
-Risk: the one unit that puts a convention into the data. Accepted and stated in the description.
+Risk: the one unit that puts a convention into the data. Accepted and stated in the description. It also
+settles a contested key on its own, because the replacement carries a fresh stamp — which is why
+`resolve_conflict` does not mention keys.
 
 ### 11 · Three pointing sentences
 
@@ -488,7 +491,7 @@ Titles for the seven new tools, in the same order: `Read Changes`, `Find Nodes`,
 > `read_changes`.
 
 > `entityNames` — the entities to trace; a relation counts under both of its endpoints.
-> `limit`/`offset` — page the operations, newest first.
+> `limit`/`offset` — page the operations, newest first; 50 by default, at most 500.
 
 **`set_observations`**
 

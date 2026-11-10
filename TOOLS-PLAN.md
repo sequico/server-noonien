@@ -126,7 +126,7 @@ step is replaying only the new operations onto the cached graph, which changes n
 ### 2. `find_nodes` — a search that finds things
 
 `search_nodes` is a lowercased substring over name, type and observations, returned in name order. So
-`"port redis"` finds nothing, `"ports"` does not find `port`, and the best hit is wherever the
+`"port redis"` almost never hits, `"ports"` does not find `port`, and the best match is wherever the
 alphabet puts it. That tool is the official one and it does not move; the search an agent would
 actually type gets its own:
 
@@ -137,14 +137,12 @@ actually type gets its own:
 { "entities": [/* matching entities, ranked */], "relations": [/* incident */] }
 ```
 
-- The query is split into terms on non-alphanumerics; **every** term must match, and a term matches a
-  token by prefix (`nooni` → `nooniend`, `ports` → `port`).
+- The query is split into terms on non-alphanumerics and **every** term must match; a term matches a
+  **token prefix**, so `port` finds `ports` and not `support`. Neither tool contains the other, which
+  is why both stay: `search_nodes` answers the literal-substring question, `find_nodes` the spoken one.
 - Ranked: exact name, then name prefix, then type, then observation; the earliest match position
   breaks ties inside a field, then name. `limit`/`offset` page the ranked list, so a page is stable
   for an unchanged graph.
-- A term matches a **token prefix**, so `port` finds `ports` and not `support`: the two searches
-  differ, and neither is a superset of the other. `search_nodes` still answers the literal-substring
-  question, which is why it stays exactly as it is instead of being replaced.
 - `entityType` filters to one exact type, as on `search_nodes`.
 
 Implementation: pure `src/graph/search.ts` (`terms`, `scoreEntity`) called from a new `findNodes` on
@@ -196,7 +194,7 @@ The graph decays into near-duplicates (`nooniend`, `noonien daemon`, `nooniend.s
 Names are normalised (lowercase, diacritics stripped, non-alphanumerics collapsed, known suffixes
 such as `.service` trimmed) and compared by token-set Jaccard and normalised Levenshtein ratio, the
 greater winning; shared observation tokens raise the score and add a reason. A pair is proposed when
-its score reaches `threshold`.
+its score reaches `threshold` (default 0.75); `limit` defaults to 20 pairs.
 
 **Blocking** keeps it from being quadratic: entities are bucketed by each name token, and a bucket
 compares at most its first 200 members (they are in name order), so the cost is bounded by

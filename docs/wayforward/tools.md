@@ -225,7 +225,9 @@ and cannot see what, or when. Add both.
 
 - `authors` becomes one entry per node with the value it wrote and the stamp of its newest operation on
   that element: the pair an agent needs to decide.
-- Old fields keep their meaning; `operations` stays. It is an extension tool, so the output may grow.
+- `authors` keeps its name and gains detail; `element` and `operations` are unchanged. It is an
+  extension tool, so the output may grow — a string array becoming an array of objects is a change no
+  caller of the official nine can see.
 - No new parameter: a conflict report is short by nature.
 
 Tests: two nodes with different values produce two entries with their stamps; the same value from two

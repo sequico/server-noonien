@@ -9,8 +9,8 @@ never restates what those two already say.
 ## What changes for an agent
 
 Usefulness first. The body follows the **order of work**, which is not this order: the guards come
-first because they lock what the nine answer, then the reads, then the two extensions that close gaps
-in what already exists. The table's numbers are this ranking; the section numbers are the work order.
+first because they lock what the nine answer, then the reads, then the pair that closes the conflict
+gap. The table's numbers are this ranking; the section numbers are the work order.
 
 | #   | Change                                                                | Kind                |
 | --- | --------------------------------------------------------------------- | ------------------- |
@@ -40,8 +40,8 @@ in what already exists. The table's numbers are this ranking; the section number
   in _The words an agent reads_.
 - **Reads notify nothing; a write notifies once**, through the existing `onMutate`. Every new read
   tool carries `annotationsRead`; `resolve_conflict` and `set_observations` carry the edit annotations.
-- **Each unit lands complete**: code, tests, its `README.md`/`docs/plan.md` row and its
-  `CHANGELOG.md` line under `Unreleased`, in one commit.
+- **Each unit lands complete**: code, tests, its `README.md`/`docs/plan.md` row (written or amended)
+  and its `CHANGELOG.md` line under `Unreleased`, in one commit.
 - **The gate runs once, before the push** (project rule), on the whole tree. Unit commits are read
   back by hand.
 
@@ -100,10 +100,12 @@ it fails the day someone adds a tool without the words.
 
 ### 2 · Drop-in contract test
 
-Before touching any of the nine, pin what they answer: a fixture graph and a golden of each tool's
-input schema, output schema and result — **description excluded**, because the prose is ours. The test
-also asserts the result _order_, which is what `search_nodes` and `read_graph` return today. From then
-on, any accidental change to a drop-in is a red test rather than a review finding.
+Before touching any of the nine, pin what they answer: a fixture graph and, for each tool, the
+expected input schema, output schema and result written out in the test — **description excluded**,
+because the prose is ours. Expectations are spelled out rather than snapshotted: a snapshot is accepted
+by pressing a key, which is how a contract drifts. The test also pins the result _order_, which for
+`search_nodes` and `read_graph` is name order. From then on, an accidental change to a drop-in is a red
+test rather than a review finding.
 
 **Removal:** never.
 
@@ -116,6 +118,7 @@ operation log already knows the answer.
 // input — since optional, ISO-8601
 { "since": "2026-11-10T08:00:00.000Z", "limit": 50, "offset": 0 }
 // output
+// output — since is the window actually used, until is this node's clock
 { "since": "…", "until": "…", "entities": [/* touched, current state */], "relations": [/* incident */], "deleted": ["Name"] }
 ```
 
@@ -192,9 +195,9 @@ and cannot see what. Add the distinct values each author left.
 ```
 
 `values` is the distinct payload text per element — the observation content, the entity type, the
-relation key — capped at the number of operations on that element. It is an extension tool, so the
-output may grow; the existing fields keep their names and meaning. No new parameter: a conflict report
-is short by nature, and a graph with hundreds of them has a problem a page will not solve.
+relation key. It is an extension tool, so the output may grow; the existing fields keep their names and
+meaning. No new parameter: a conflict report is short by nature, and a graph with hundreds of them has a
+problem a page will not solve.
 
 Tests: two authored values appear; the same value from two nodes appears once; an element authored by
 one node is absent.
@@ -221,8 +224,11 @@ primitive is a **fresh stamp on a chosen outcome**.
   the change propagates; `keep: false` writes a fresh tombstone, so absence wins.
 - **`changed` is `false` when the fold already agreed**: an element that stands as asked is left alone,
   because every write is durable history and a no-op write is noise.
-- Implementation: `observation.add`/`.delete` and `relation.add`/`.delete`; no new operation type, so
-  convergence is the one already proven.
+- Implementation writes the operation drafts and commits them, **not** through `addObservations` or
+  `createRelations`: their skip-if-present rule is exactly what this tool has to bypass. The payloads
+  stay `observation.add`/`.delete` and `relation.add`/`.delete`, so no new operation type exists and the
+  convergence proof is the one already in the tests.
+- A relation can only be kept if both endpoints exist, the same rule `create_relations` enforces.
 - Entity _types_ are not settled here: `update_entities` already tombstones and re-adds, which is a
   fresh stamp by construction.
 
@@ -240,8 +246,8 @@ suggests. No removal path; the alternative is leaving `read_conflicts` unusable.
 it usable, in two modes:
 
 ```jsonc
-{ "by": "name", "threshold": 0.75, "limit": 20 }   // default
-{ "by": "content" }                                  // the same fact under two names
+// by is "name" (default) or "content"; threshold and limit apply to both
+{ "by": "name", "threshold": 0.75, "limit": 20 }
 // → { "pairs": [{ "a": "nooniend", "b": "noonien daemon", "score": 0.81, "reasons": ["name", "observations"] }] }
 ```
 
@@ -368,7 +374,7 @@ cannot be checked there is rewritten or deleted.
 | `.opencode/skills/noonien-dev/SKILL.md` | the developer skill names the tools and commands it teaches                                                                                                                        | edit             |
 | `server.json`                           | the registry listing carries no tool names; its version fields are bumped by release-please                                                                                        | verify           |
 | `docs/protocol.md`                      | no wire message, header or route changed — this release adds no daemon surface                                                                                                     | verify           |
-| `docs/paper.md`                         | **frozen at 1.0.0**: it says "the same nine tools", which stays true, and its one mention of `PLAN.md` stays a name                                                                | do not touch     |
+| `docs/paper.md`                         | **frozen at 1.0.0**: it says "the same nine tools", which stays true, and its mention of the plan is a name, not a link, so the move breaks nothing                                | do not touch     |
 | `docs/wayforward/tools.md`              | this file, deleted once its content lives in README and PLAN                                                                                                                       | delete           |
 
 The registries follow the release: npm renders the README from the tarball, the MCP Registry publishes
@@ -390,8 +396,9 @@ comparison across nodes lives in `~/sequicompany`.
 ### 18 · Measure the TDQS
 
 The text in _The words an agent reads_ is written for a score nobody has seen yet. After Glama syncs
-the release, read the per-tool TDQS and write back which dimension is still low — Behaviour, Usage or
-Parameters — and fix that dimension's sentences in a follow-up commit. Without this step the writing is
+the release, read the per-tool TDQS and record which dimension is still low — Behaviour, Usage or
+Parameters — in the internal registry notes, then fix that dimension's sentences in a follow-up commit.
+Nothing is written back into this file: it is deleted at the release. Without this step the writing is
 done blind, which is how it was done the first time.
 
 ---
@@ -457,8 +464,8 @@ Titles for the seven new tools, in the same order: `Read Changes`, `Find Nodes`,
 > reported as unchanged, because every write is durable history.
 
 > `elements` — the elements to settle, one entry each. `entityName` and `content` name an observation;
-> `from`, `to` and `relationType` name a relation. `keep` — true to make it stand, false to make it
-> go.
+> `from`, `to` and `relationType` name a relation, which can only stand if both its endpoints do.
+> `keep` — true to make it stand, false to make it go.
 
 **`find_duplicates`**
 

@@ -4,7 +4,7 @@ Normative description of the protocol the `nooniend` daemon speaks over the netw
 in `src/gossip/`. It is the technical reference for interoperability, for reviewing the replication
 design, and for the port and discovery model of the service (see [Port](#port)). The environment
 variables that configure the daemon are listed in
-[`README.md`](README.md#daemon-variables) and are not repeated here.
+[`README.md`](../README.md#daemon-variables) and are not repeated here.
 
 ## Role
 
@@ -18,7 +18,7 @@ consensus, only eventual completeness.
 ## Transport
 
 - **TCP.** The daemon binds a single, configurable TCP port (`NOONIEND_LISTEN`; see
-  [`README.md`](README.md#daemon-variables)).
+  [`README.md`](../README.md#daemon-variables)).
 - **HTTP/1.1.** Requests and responses use the Node.js `http`/`https` stack; a client uses one request
   per message (no persistent application session, no WebSocket, no multiplexing).
 - **Optional TLS.** When a certificate and key are configured the service speaks **HTTPS**; with a CA

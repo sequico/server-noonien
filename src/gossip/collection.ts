@@ -14,7 +14,7 @@ export type Frontier = ReadonlyMap<string, number>
  * `retired` and `blanket` are the two durable forms a peer's protection takes once
  * its retention window expires and its live record is dropped. They exist so that
  * bounding the retained metadata never weakens the gate: the *comparison* a peer
- * provided is materialised, not its outcome (see `PLAN.md`, and
+ * provided is materialised, not its outcome (see `docs/plan.md`, and
  * `retireSilentPeers` in `daemon.ts`, which produces them).
  */
 export interface OffMesh {
@@ -34,7 +34,7 @@ export interface OffMesh {
    * them — so it gates the elements those peers could contest **for ever**, including
    * deletions that happen *after* the expiry (a per-element pin taken at expiry would
    * miss exactly those, which is why the comparison is kept instead; see
-   * `PLAN.md`).
+   * `docs/plan.md`).
    *
    * It cannot over-reach: only *accounted* peers (whose frontier is a subset of the
    * local high-water marks) are merged into it, so `retired ⊆ local` always holds and

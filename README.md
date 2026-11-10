@@ -277,7 +277,7 @@ How it behaves:
   host is never even probed. A node's own entry is authoritative; an address that serves a different
   node is dropped.
 - **Wire and security.** A small HTTP/JSON service bound to `NOONIEND_LISTEN` (the full wire contract
-  is in [`PROTOCOL.md`](PROTOCOL.md)); a shard accepts only its own node's operations. mTLS with
+  is in [`docs/protocol.md`](docs/protocol.md)); a shard accepts only its own node's operations. mTLS with
   per-peer certificates: the certificate's **common name is the node id**, so a peer may only push
   the shard it authors, while reads stay open to any authenticated peer — which is what lets a node
   relay. `NOONIEND_REVOKED` refuses specific nodes on every route; `NOONIEND_DEPARTED`
@@ -309,7 +309,7 @@ WantedBy=default.target
 
 `nooniend` serves a small HTTP/JSON API on `NOONIEND_LISTEN` (default `0.0.0.0:49778`). The full wire
 contract — routes and payloads, the operation format, the protocol revision and capabilities, the
-size limits and the mTLS model — is specified in [`PROTOCOL.md`](PROTOCOL.md).
+size limits and the mTLS model — is specified in [`docs/protocol.md`](docs/protocol.md).
 
 ```sh
 curl -s http://127.0.0.1:49778/health
@@ -831,12 +831,12 @@ them._
 
 ## Documentation
 
-- [`PLAN.md`](PLAN.md) — architecture and design decisions.
+- [`docs/plan.md`](docs/plan.md) — architecture and design decisions.
 - [`docs/wayforward/scaling.md`](docs/wayforward/scaling.md) — the forward-looking plan for 1,000 /
   10,000 nodes.
 - [`docs/wayforward/tools.md`](docs/wayforward/tools.md) — the forward-looking plan for the tool
   extensions.
-- [`PROTOCOL.md`](PROTOCOL.md) — the `nooniend` wire protocol: transport, messages, limits and
+- [`docs/protocol.md`](docs/protocol.md) — the `nooniend` wire protocol: transport, messages, limits and
   security.
 - [`docs/paper.md`](docs/paper.md) — the technical report: the model, the tombstone-collection
   contribution and the evaluation, with the bibliography in

@@ -2,7 +2,7 @@
 
 Thanks for your interest in server-noonien. This is the short version; the project rules in
 [`AGENTS.md`](AGENTS.md) are the authoritative ones. Read [`README.md`](README.md) for usage and
-[`PLAN.md`](PLAN.md) for the design, and follow the [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). By
+[`docs/plan.md`](docs/plan.md) for the design, and follow the [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). By
 contributing you agree that your contributions are licensed under the [Mozilla Public License
 2.0](LICENSE).
 
@@ -36,7 +36,7 @@ if it was not run by hand.
    or extend the property tests when a change touches merge, serialization or ordering.
 3. Add unit tests for the logic, keep the tree clean (no leftover files), and do not commit
    `.skip`/`.only`.
-4. Update `README.md`/`PLAN.md` when user-visible behaviour changes.
+4. Update `README.md`/`docs/plan.md` when user-visible behaviour changes.
 
 ## Commits and pull requests
 

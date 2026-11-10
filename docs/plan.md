@@ -101,7 +101,7 @@ shards peer to peer, needing only IP reachability.
 
 A companion daemon that replicates the shard directory **peer to peer**, so `server-noonien` keeps the
 `file` backend on a local directory with a full replica and needs no shared area. It is the
-project's headline feature: [`README.md`](README.md) documents how to run and configure it; this
+project's headline feature: [`README.md`](../README.md) documents how to run and configure it; this
 section records the design decisions and the reasons for them.
 
 The transport is **underlay-agnostic**: it only needs IP reachability between peers, so it runs over
@@ -311,7 +311,7 @@ through environment variables: the shared `NOONIEN_DIR` and `NOONIEN_NODE_ID` pl
 
 ## Documentation
 
-`README.md` and `PLAN.md` are the project's current-state documentation: they describe how things
+`README.md` and `docs/plan.md` are the project's current-state documentation: they describe how things
 are now — no history, no before/after, no changelog — and are revised alongside the code
 (`CHANGELOG.md` is the one historical artifact, kept concise by hand: one line per release):
 
@@ -319,7 +319,7 @@ are now — no history, no before/after, no changelog — and are revised alongs
   solved; the three commands and how to run each; sharing across machines (peer to peer or a shared
   area); the `NOONIEN_*` and `NOONIEND_*` configuration tables; how the CRDT and compaction work;
   drop-in compatibility; security.
-- **PLAN.md** — this document: the architecture, the gossip design decisions and their rationale,
+- **`docs/plan.md`** — this document: the architecture, the gossip design decisions and their rationale,
   the tool surface, the CLI, distribution, testing and the current state. Work that is explicitly
   forward-looking is kept under a `## Planned:` heading, labelled as such and separate from the
   current-state description.
@@ -355,7 +355,7 @@ Three levels, cheapest first:
    directory, or proxied to a daemon through `/graph`, `/peers`, `/status` and `/watermark`. Bound
    to `127.0.0.1` by default; a remote peer is authenticated with the same mTLS material the
    transport already uses. A subcommand, not a daemon route: the daemon is a wire protocol
-   (`PROTOCOL.md`), and a UI must not widen it.
+   (`docs/protocol.md`), and a UI must not widen it.
 3. **Mesh and convergence debug** — a topology view (every peer from `/peers` and `/status`) and the
    convergence state (the stable watermark and the frozen elements `noonien_gossip_frozen_elements`
    reports) — the CRDT's debuggability, which today lives in `src/gossip/collection.ts`.

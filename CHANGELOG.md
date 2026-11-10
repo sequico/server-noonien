@@ -111,8 +111,8 @@ version and its date.
 - Change the default `nooniend` listen port to `27878`. A mesh must run one port on every node — a
   discovery seed carries none and takes the dialer's own — so upgrade the nodes together, or pin
   `NOONIEND_LISTEN` while they are mixed.
-- Document the `nooniend` wire protocol in [`PROTOCOL.md`](PROTOCOL.md); the README's daemon API
-  section now points to it.
+- Document the `nooniend` wire protocol in [`docs/protocol.md`](docs/protocol.md); the README's daemon
+  API section now points to it.
 - Disclose the package's one process spawn — `execFile` without a shell, in `nooniend` only and
   opt-in — in [`SECURITY.md`](SECURITY.md).
 

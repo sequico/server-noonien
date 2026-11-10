@@ -3,7 +3,7 @@
 One plan for the additions to the surface an agent and its operator see, and for the public documents
 that have to describe them: one work breakdown, one order, one release. This document is
 **forward-looking** — it exists until 1.3.0 ships, then each unit's content moves into `README.md`
-(tool table, CLI list) and `PLAN.md` (tool surface, decisions) and the file is deleted. It never
+(tool table, CLI list) and `docs/plan.md` (tool surface, decisions) and the file is deleted. It never
 describes history, and never restates what those two already say.
 
 Usefulness order is the ranking below. **Implementation order is the work breakdown**, because one
@@ -35,7 +35,7 @@ and an MCP tool for an operator fact would widen the surface an agent reads for 
   then when to use the tool instead of a sibling and how it fails. Every parameter gets a
   `describe()`.
 - **Reads notify nothing; the one write notifies once**, through the existing `onMutate`.
-- **Each unit lands complete**: code, tests, its `README.md`/`PLAN.md` row and its `CHANGELOG.md`
+- **Each unit lands complete**: code, tests, its `README.md`/`docs/plan.md` row and its `CHANGELOG.md`
   line under `Unreleased`, in one commit. The docs describe the current state, so they cannot trail
   the code to a final sweep.
 - **The gate runs once, before the push** (project rule), on the whole tree. Unit commits are read
@@ -287,7 +287,7 @@ standing.
 | Artifact                                | What it must say after 1.3.0                                                                                                                                                                                                                              | Action           |
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | `README.md`                             | four new rows in the tool table (five with `set_observations`, when D1 says yes); `stats` in the CLI list; the two searches and how they differ; `read_changes`'s window; the Documentation list with the `docs/wayforward/tools.md` line removed         | edit             |
-| `PLAN.md`                               | four `read` rows in the tool surface table, `set_observations` as additive + tombstone when D1 says yes; `stats` in the CLI list; _Current state_ naming the new reads; the decision that a better search is a tool beside the nine, never a change to it | edit             |
+| `docs/plan.md`                          | four `read` rows in the tool surface table, `set_observations` as additive + tombstone when D1 says yes; `stats` in the CLI list; _Current state_ naming the new reads; the decision that a better search is a tool beside the nine, never a change to it | edit             |
 | `CHANGELOG.md`                          | `Unreleased` cut into `1.3.0` with its date, the lines already written by the units                                                                                                                                                                       | edit             |
 | `CONTRIBUTING.md`                       | the drop-in paragraph lists the extensions (`update_*`, `merge_entities`, `read_conflicts`): it must list the new ones too                                                                                                                                | edit             |
 | `mcpb/manifest.json`                    | `long_description` names the extensions — add these; **never** the version, release-please owns it                                                                                                                                                        | edit description |
@@ -295,7 +295,7 @@ standing.
 | `docs/wayforward/scaling.md`            | the measured read cost and the "page the surface" advice still hold, and the new reads do not contradict them                                                                                                                                             | verify           |
 | `.opencode/skills/noonien-dev/SKILL.md` | the developer skill names the tools and commands it teaches                                                                                                                                                                                               | edit             |
 | `server.json`                           | the registry listing carries no tool names; its version fields are bumped by release-please (`extra-files`)                                                                                                                                               | verify           |
-| `PROTOCOL.md`                           | no wire message, header or route changed — this release adds no daemon surface                                                                                                                                                                            | verify           |
+| `docs/protocol.md`                      | no wire message, header or route changed — this release adds no daemon surface                                                                                                                                                                            | verify           |
 | `docs/paper.md`                         | **frozen at 1.0.0**: it says "the same nine tools", which stays true; the formatter already skips it                                                                                                                                                      | do not touch     |
 | `docs/wayforward/tools.md`              | this file, deleted once its content lives in README and PLAN                                                                                                                                                                                              | delete           |
 

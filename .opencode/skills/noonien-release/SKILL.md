@@ -36,7 +36,7 @@ runs CI only (`.github/workflows/ci.yml`).
   JSON updater writes (arrays expanded, two-space indent).
 - `skip-changelog: true`: release-please does not write `CHANGELOG.md`. That file is the one
   historical artifact, kept concise by hand — one line per release, with the pending change under
-  `Unreleased` until the release turns it into the version and its date. `README.md`/`PLAN.md` stay
+  `Unreleased` until the release turns it into the version and its date. `README.md`/`docs/plan.md` stay
   snapshot-only.
 
 ## Files

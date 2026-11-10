@@ -568,7 +568,7 @@ interface CollectInput {
  *
  * Materialising is the whole point of the policy — bounding the durable metadata must
  * never weaken the gate — so a peer is retired into exactly the statement it was
- * making (`PLAN.md` — *Bounded retention*):
+ * making (`docs/plan.md` — *Bounded retention*):
  *
  * - **accounted for** (its frontier is a subset of our high-water marks): its frontier
  *   is merged into the retired frontier, one elementwise maximum per author. The

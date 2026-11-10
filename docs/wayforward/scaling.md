@@ -1,6 +1,6 @@
 # server-noonien — Scaling plan
 
-`README.md` and `PLAN.md` describe the **current** state; this document is the **plan** for taking
+`README.md` and `docs/plan.md` describe the **current** state; this document is the **plan** for taking
 the same CRDT from a small island to 1,000 and 10,000 machines without changing the merge semantics.
 It restates the concrete values of the building blocks it relies on under
 [Prerequisites](#prerequisites), each linked to its full description.

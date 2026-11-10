@@ -18,8 +18,8 @@ const PEERS_FILE = ".nooniend-peers.json"
  *
  * - `RETIRED_KEY` — the **retired frontier**: `author → greatest sequence`, the
  *   elementwise maximum over the peers whose retention window expired. See
- *   `PLAN.md` (*Bounded retention*) for why the *comparison* is kept rather than the
- *   elements it once covered.
+ *   `docs/plan.md` (*Bounded retention*) for why the *comparison* is kept rather
+ *   than the elements it once covered.
  * - `BLANKETS_KEY` — the node ids whose protection is "it could hold anything": a
  *   retired peer that was not accounted for, so its frontier could not be verified.
  */
@@ -232,7 +232,7 @@ export class PeerKnowledge {
    * never which elements are guarded. Two consequences worth stating:
    *
    * - it covers **future** deletions too, because the comparison is kept rather than a
-   *   snapshot of its outcome at expiry time (`PLAN.md`);
+   *   snapshot of its outcome at expiry time (`docs/plan.md`);
    * - it is permanent: a maximum cannot be un-merged, so a node must be departed
    *   *before* its window expires if its contribution must be lifted.
    */

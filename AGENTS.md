@@ -16,7 +16,7 @@ Shared, serverless, conflict-free memory for AI agents: a drop-in replacement fo
 server. Nodes need a path between them: the `file`/`s3` backends require a **shared area** (a
 replicated shard directory or an object store) because the server merges the shards, it does not
 move them, while the companion **`nooniend`** daemon replicates the shards peer to peer and needs
-only IP reachability. See [`README.md`](README.md) and [`PLAN.md`](PLAN.md).
+only IP reachability. See [`README.md`](README.md) and [`docs/plan.md`](docs/plan.md).
 
 ## Language
 
@@ -54,7 +54,7 @@ All repository content — code, identifiers, comments, docs and commit messages
 - **Changelog** — `CHANGELOG.md` is the one historical artifact and is **maintained by hand with every
   user-visible change**: one line per release, the pending change under `Unreleased`. release-please
   writes the version, the tag and the GitHub Release, never this file.
-- **Docs** — `README.md`/`PLAN.md` describe the current state only: no history, no changelog.
+- **Docs** — `README.md`/`docs/plan.md` describe the current state only: no history, no changelog.
   `docs/wayforward/` holds what is forward-looking (the scaling plan, the tool extension plan), and
   the report in `docs/` is frozen at the release it pins.
 - Use the latest online documentation for libraries instead of relying on memory.

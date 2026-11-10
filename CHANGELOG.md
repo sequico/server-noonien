@@ -7,7 +7,7 @@ version and its date.
 
 [rp]: https://github.com/googleapis/release-please
 
-## Unreleased
+## 1.3.0 (2026-11-10)
 
 - **Seven new tools.** `read_changes` reads only what moved in a window, with the names deleted in
   it; `find_nodes` searches the way a query is written (every word must match, a word matches a

@@ -661,7 +661,8 @@ The same endpoint carries the transport and liveness families — `noonien_gossi
 `noonien_gossip_hook_failed_total` — and, when the daemon runs the local log's own
 maintenance, its `noonien_mcp_*` counters (`noonien_mcp_folds_total`, `noonien_mcp_fold_seconds`,
 `noonien_mcp_shards_merged`, `noonien_mcp_shard_stat_total`, `noonien_mcp_ops_decoded_total`,
-`noonien_mcp_compacted_total`, `noonien_mcp_compaction_failed_total`).
+`noonien_mcp_ops_appended_total`, `noonien_mcp_compacted_total`,
+`noonien_mcp_compaction_failed_total`, `noonien_mcp_compaction_skipped_total`).
 
 ## Tools
 

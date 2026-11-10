@@ -407,9 +407,12 @@ ES modules and inline SVG; no bundler and no framework in the toolchain or the r
 
 - **Core CRDT and the `file` backend** — an append-only operation log, the fold, the nine drop-in
   tools over stdio and the extension tools (`update_entities`, `update_observations`,
-  `update_relations`, `merge_entities`, `read_conflicts`), with an optional page on the reads.
-- **Maintenance CLI** (`noonien`) — `serve`, `import`, `export`, `merge`, `compact`, `query`,
-  `help`; `import` migrates an official `memory.jsonl`.
+  `update_relations`, `merge_entities`, `read_conflicts`, `resolve_conflict`, `read_changes`,
+  `find_nodes`, `expand_nodes`, `find_duplicates`, `read_history`, `set_observations`), with an
+  optional page on the reads.
+- **Maintenance CLI** (`noonien`) — `serve`, `import`, `export` (with `--out`/`--keep` snapshots),
+  `merge`, `compact`, `stats` (with `--json`), `doctor`, `query`, `help`; `import` migrates an
+  official `memory.jsonl`.
 - **S3 backend** — shards as objects written with versioned conditional writes that are retried on
   contention, verified against an S3-compatible store.
 - **Compaction** — outside the write path in the server (a timer, with one attempt at startup, by

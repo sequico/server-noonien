@@ -12,7 +12,7 @@ commands, CRDT rules and gates. Use when editing, adding tools, or reviewing cod
 src/index.ts        bin `server-noonien`: the MCP server (no args, or `serve`)
 src/noonien.ts     bin `noonien`: the maintenance CLI
 src/gossip.ts       bin `nooniend`: the peer-to-peer replication daemon (no args)
-src/server.ts       the tools, the knowledge-graph resource and its subscriptions
+src/server.ts       the tools, the graph and changes resources, and their subscriptions
 src/serve.ts        stdio server bootstrap
 src/cli.ts          CLI commands: serve / import / export / merge / compact / query / help
 src/config.ts       environment configuration and backend wiring

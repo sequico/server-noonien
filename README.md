@@ -416,9 +416,12 @@ switches; with the `memory` backend nothing is shared, so the server collects re
 S3 credentials come from the standard AWS chain (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
 `AWS_REGION`, profiles, instance roles, …).
 
-The local shard is compacted **online**: the server rewrites its own shard after
-`NOONIEN_COMPACT_AFTER` appended operations (default `1000`, `0` disables), inside the same
-mutation queue as the writes. The rewrite is a compare-and-swap against the content it read, and a
+The local shard is compacted from a **timer**, never from a write: the server asks at startup
+(because a session may close before the timer fires) and then once a minute, and a pass runs when the
+shard has grown by `NOONIEN_COMPACT_BYTES` (default 8 MiB) or `NOONIEN_COMPACT_AFTER` operations have
+been appended (default `1000`; `0` disables either signal). A mutation only counts itself, so no write
+waits behind a rewrite; a pass that fails to win the compare-and-swap doubles its wait instead of
+retrying on every mutation. The rewrite is a compare-and-swap against the content it read, and a
 concurrent write — an append, or the `nooniend` daemon recovering the shard — makes it re-read and
 retry, so nothing is ever lost; `noonien compact` runs the same compaction by hand. `noonien
 import` authors its own `<node>-import` shard, so it too can run while the node's server is live,

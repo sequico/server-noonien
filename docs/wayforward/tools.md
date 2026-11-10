@@ -207,10 +207,12 @@ create of what already exists is skipped, and a delete already in the log change
 primitive is a **fresh stamp on a chosen outcome**.
 
 ```jsonc
-// input — each entry names an observation or a relation, and whether it should stand
-{ "elements": [{ "entityName": "Glama", "content": "…", "keep": true }] }
-{ "elements": [{ "from": "A", "to": "B", "relationType": "…", "keep": false }] }
-// output
+// input — each entry names an observation or a relation, and whether it should stand; shapes mix
+{ "elements": [
+  { "entityName": "Glama", "content": "listed version: 1.2.0", "keep": true },
+  { "from": "A", "to": "B", "relationType": "runs", "keep": false }
+] }
+// output, one result per entry
 { "results": [{ "element": "…", "keep": true, "changed": true }] }
 ```
 
@@ -352,20 +354,20 @@ surface, reviewed once, after the last unit, as a **read** rather than a search-
 sentence that names a tool, counts them or names a command is compared with the tree, and a claim that
 cannot be checked there is rewritten or deleted.
 
-| Artifact                                    | What it must say after 1.3.0                                                                                                                                                                     | Action           |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
-| `README.md`                                 | seven new rows in the tool table (six without D1); `stats` and `--json` in the CLI list; the two searches and how they differ; `read_changes`'s window; the Documentation list without this file | edit             |
-| `docs/plan.md`                              | the new rows in the tool surface table with their kind; `stats` in the CLI list; _Current state_ naming the new reads; the decision that a better search is a tool beside the nine               | edit             |
-| `CHANGELOG.md`                              | `Unreleased` cut into `1.3.0` with its date, the lines the units wrote plus the one already on main for the enriched descriptions                                                                | edit             |
-| `CONTRIBUTING.md`                           | the drop-in paragraph lists the extensions: it must list the new ones                                                                                                                            | edit             |
-| `mcpb/manifest.json`                        | `long_description` names the extensions — add these; never the version, release-please owns it                                                                                                   | edit description |
-| `AGENTS.md`                                 | the compatibility contract names the current extensions — project law, so the owner approves the wording                                                                                         | edit with owner  |
-| `SCALING.md` → `docs/wayforward/scaling.md` | the measured read cost and the "page the surface" advice still hold; the new reads do not contradict them                                                                                        | verify           |
-| `.opencode/skills/noonien-dev/SKILL.md`     | the developer skill names the tools and commands it teaches                                                                                                                                      | edit             |
-| `server.json`                               | the registry listing carries no tool names; its version fields are bumped by release-please                                                                                                      | verify           |
-| `PROTOCOL.md` → `docs/protocol.md`          | no wire message, header or route changed — this release adds no daemon surface                                                                                                                   | verify           |
-| `docs/paper.md`                             | **frozen at 1.0.0**: it says "the same nine tools", which stays true, and its one mention of `PLAN.md` stays a name                                                                              | do not touch     |
-| `docs/wayforward/tools.md`                  | this file, deleted once its content lives in README and PLAN                                                                                                                                     | delete           |
+| Artifact                                | What it must say after 1.3.0                                                                                                                                                                     | Action           |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| `README.md`                             | seven new rows in the tool table (six without D1); `stats` and `--json` in the CLI list; the two searches and how they differ; `read_changes`'s window; the Documentation list without this file | edit             |
+| `docs/plan.md`                          | the new rows in the tool surface table with their kind; `stats` in the CLI list; _Current state_ naming the new reads; the decision that a better search is a tool beside the nine               | edit             |
+| `CHANGELOG.md`                          | `Unreleased` cut into `1.3.0` with its date, the lines the units wrote plus the one already on main for the enriched descriptions                                                                | edit             |
+| `CONTRIBUTING.md`                       | the drop-in paragraph lists the extensions: it must list the new ones                                                                                                                            | edit             |
+| `mcpb/manifest.json`                    | `long_description` names the extensions — add these; never the version, release-please owns it                                                                                                   | edit description |
+| `AGENTS.md`                             | the compatibility contract names the current extensions — project law, so the owner approves the wording                                                                                         | edit with owner  |
+| `docs/wayforward/scaling.md`            | the measured read cost and the "page the surface" advice still hold; the new reads do not contradict them                                                                                        | verify           |
+| `.opencode/skills/noonien-dev/SKILL.md` | the developer skill names the tools and commands it teaches                                                                                                                                      | edit             |
+| `server.json`                           | the registry listing carries no tool names; its version fields are bumped by release-please                                                                                                      | verify           |
+| `docs/protocol.md`                      | no wire message, header or route changed — this release adds no daemon surface                                                                                                                   | verify           |
+| `docs/paper.md`                         | **frozen at 1.0.0**: it says "the same nine tools", which stays true, and its one mention of `PLAN.md` stays a name                                                                              | do not touch     |
+| `docs/wayforward/tools.md`              | this file, deleted once its content lives in README and PLAN                                                                                                                                     | delete           |
 
 The registries follow the release: npm renders the README from the tarball, the MCP Registry publishes
 the tagged `server.json`, and Glama re-syncs and re-scores on its own schedule.

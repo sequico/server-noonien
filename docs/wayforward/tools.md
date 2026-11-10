@@ -143,7 +143,7 @@ Titles, in the same order: `Read Changes`, `Find Nodes`, `Expand Nodes`, `Find D
 > fact, matched at the start of an observation. `value` — what the fact is now.
 
 **`instructions`** — the tail of the constant in `src/server.ts`, replacing its last sentence rather
-than adding one:
+than adding one (the backticks here are this document's; the string is plain text):
 
 > … For a large graph, page `read_graph` and `search_nodes` with limit/offset, and filter
 > `search_nodes` by entityType; `find_nodes` searches the way a query is written — every word must

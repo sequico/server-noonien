@@ -101,7 +101,8 @@ operation log already knows the answer.
   the promise is "changes are complete for any node whose clock is within ±5 minutes of this one".
   Revisits cost a few hundred bytes and repeat reads are idempotent; an exact `ts > since` would
   drop a peer's operation written with a lagging clock, and that is the failure that matters.
-- `since` absent means "the last five minutes".
+- `since` absent means "the last five minutes"; a `since` in the future is clamped to now rather than
+  answering an empty page.
 - **Touched** means named by an operation in the window: an entity create or delete, an observation
   add or delete, or either endpoint of a relation add or delete.
 - **`deleted` is trustworthy** because collection drops only shadowed operations and never a
@@ -116,8 +117,8 @@ output schema is written there.
 
 Tests: an op exactly at `since` is included; an entity created before the window and observed inside
 it arrives complete; a deletion inside the window is reported once and absent from `entities`; an
-operation stamped five minutes behind is not lost; a `shard.compact` operation in the window changes
-nothing; paging over the touched set.
+operation stamped five minutes behind is not lost; a `since` in the future is clamped; a
+`shard.compact` operation in the window changes nothing; paging over the touched set.
 
 Risk: a whole-log fold makes the first call after a change no cheaper than `read_graph`. At 10,000
 operations it is single-digit milliseconds and the memoized fold covers repeats. Past that, the next
@@ -171,7 +172,8 @@ The graph decays into near-duplicates (`nooniend`, `noonien daemon`, `nooniend.s
 
 Names are normalised (lowercase, diacritics stripped, non-alphanumerics collapsed, known suffixes
 such as `.service` trimmed) and compared by token-set Jaccard and normalised Levenshtein ratio, the
-greater winning; shared observation tokens raise the score and add a reason.
+greater winning; shared observation tokens raise the score and add a reason. A pair is proposed when
+its score reaches `threshold`.
 
 **Blocking** keeps it from being quadratic: entities are bucketed by each name token, and a bucket
 compares at most its first 200 members (they are in name order), so the cost is bounded by
@@ -242,7 +244,8 @@ query keeps today's behaviour; paging over a ranked list.
 ```
 
 - The observation is the content `key: value`; a key owns an observation when the content is exactly
-  the key or starts with `key: `.
+  the key or starts with `key: `. A key containing `: ` is refused, because it would let two keys own
+  the same observation; the validation message says so.
 - **All** occurrences of the key collapse into the one new content, so a drifted twin cannot survive.
   Entries apply in order, so a second entry for the same key sees what the first wrote. `action` is
   `added` when the key was absent.
@@ -252,9 +255,9 @@ query keeps today's behaviour; paging over a ranked list.
   one notification.
 
 Tests: add then replace; two drifted duplicates collapse to one; `key:extra` without the space is
-not owned by the key `key`; two entries on one key end in one observation; a missing entity reports
-per entry; the op log contains only the two existing payload types; convergence — the same set on
-two nodes converges and the later HLC wins.
+not owned by the key `key`; a key containing `: ` is refused; two entries on one key end in one
+observation; a missing entity reports per entry; the op log contains only the two existing payload
+types; convergence — the same set on two nodes converges and the later HLC wins.
 
 Risk: the one unit that puts a convention into the data. An agent writing those observations by hand
 can leave a key nobody replaces — accepted and stated in the description; the alternative, a

@@ -37,6 +37,24 @@ afterEach(async () => {
   )
 })
 
+describe("noonien doctor", () => {
+  it("reports a malformed line, a torn final line and an orphan relation", async () => {
+    const directory = await tempDirectory()
+    const log = new ShardLog(new FileBackend(directory), "n1")
+    await log.append([{ type: "entity.create", name: "E", entityType: "t" }])
+    await log.append([{ type: "relation.add", from: "E", to: "Ghost", relationType: "knows" }])
+    const backend = new FileBackend(directory)
+    await backend.append("n1.jsonl", "not json\n")
+    const clean = await log.inspect()
+    expect(clean.parseErrors).toBe(1)
+    expect(clean.tornLines).toBe(0)
+    expect(clean.orphanRelations).toBe(1)
+
+    await backend.append("n1.jsonl", '{"v":1}')
+    expect((await log.inspect()).tornLines).toBe(1)
+  })
+})
+
 describe("noonien compact", () => {
   it("prunes only by default: deleting tombstones without a daemon is the operator's call", async () => {
     const directory = await tempDirectory()

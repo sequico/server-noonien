@@ -16,11 +16,13 @@ export function runStdioServer(env: NodeJS.ProcessEnv = process.env): void {
   const graph = createMemoryGraph(env)
   // Maintenance runs outside the write path: once at startup, because a session may
   // close before the timer ever fires, and then on a timer that never keeps the process
-  // alive on its own. A pass that is not due costs one stat.
-  void graph.maintain()
-  const timer = setInterval(() => {
-    void graph.maintain()
-  }, MAINTENANCE_INTERVAL_MS)
+  // alive on its own. A pass that is not due costs one stat; a failing store must not
+  // take the server down, so both are reported and swallowed.
+  const maintain = (): void => {
+    void graph.maintain().catch((error: unknown) => warn(`maintenance failed: ${String(error)}`))
+  }
+  maintain()
+  const timer = setInterval(maintain, MAINTENANCE_INTERVAL_MS)
   timer.unref()
   serveStdio(() => createMemoryServer(graph, PACKAGE), {
     onerror: (error) => warn(error.message),

@@ -679,7 +679,7 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     {
       title: "Resolve Conflict",
       description:
-        "Settle an element that more than one machine has written: keep it or drop it with a stamp newer than anything in the log, so the decision wins on every node as the change propagates. Use it after read_conflicts named the element and you have decided how it should stand — re-creating it with the existing tools is not enough, because a write that already exists is skipped, and deleting what is already tombstoned changes nothing. An element that already stands as you ask is left untouched and reported as unchanged, because every write is durable history.",
+        "Settle an element that more than one machine has written: keep it or drop it with a stamp newer than anything in the log, so the decision wins on every node as the change propagates. Use it after read_conflicts named the element and you have decided how it should stand — re-creating it with the existing tools is not enough, because a write that already exists is skipped, and deleting what is already tombstoned changes nothing. An element that already stands as you ask is left untouched and reported as unchanged, because every write is durable history. An observation needs the entity to exist, and a relation both of its endpoints, exactly as when they were created.",
       inputSchema: z.object({
         elements: z
           .array(
@@ -884,28 +884,41 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     },
   )
 
+  const readChanges = async (uri: URL) => {
+    const since = uri.searchParams.get("since")
+    const value = await graph.changes(since === null ? undefined : new Date(since))
+    return {
+      contents: [
+        {
+          uri: uri.href,
+          mimeType: "application/json",
+          text: JSON.stringify(value, null, 2),
+        },
+      ],
+    }
+  }
+  // Both are needed: a template matches only when the query is present, and a client that
+  // just refreshes its context asks for the bare URI and wants the default window.
   server.registerResource(
     "changes",
-    new ResourceTemplate("memory://changes{?since}", { list: undefined }),
+    CHANGES_RESOURCE_URI,
     {
       title: "Changes",
       description:
-        "What moved in a window: the same body as read_changes, the last five minutes when since is absent",
+        "What moved in the last five minutes: the same body as read_changes, the window it used included",
       mimeType: "application/json",
     },
-    async (uri) => {
-      const since = uri.searchParams.get("since")
-      const value = await graph.changes(since === null ? undefined : new Date(since))
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            mimeType: "application/json",
-            text: JSON.stringify(value, null, 2),
-          },
-        ],
-      }
+    readChanges,
+  )
+  server.registerResource(
+    "changes-window",
+    new ResourceTemplate(`${CHANGES_RESOURCE_URI}{?since}`, { list: undefined }),
+    {
+      title: "Changes since",
+      description: "What moved since an ISO-8601 moment: the same body as read_changes",
+      mimeType: "application/json",
     },
+    readChanges,
   )
 }
 

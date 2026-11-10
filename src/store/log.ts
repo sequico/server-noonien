@@ -16,6 +16,7 @@ import {
   OperationSchema,
   observationContentKey,
   operationId,
+  relationKey,
 } from "../graph/operations.js"
 import type { Metrics } from "../metrics.js"
 import {
@@ -120,7 +121,14 @@ function scanShard(
       continue
     }
     try {
-      ops.push(...decodeOperations(line, name))
+      const decoded = decodeOperations(line, name)
+      if (decoded.length === 0) {
+        // The codec skips a malformed line rather than failing: a non-empty line that
+        // decodes to nothing is exactly the parse error this pass exists to report.
+        parseErrors += 1
+      } else {
+        ops.push(...decoded)
+      }
     } catch {
       parseErrors += 1
     }
@@ -454,7 +462,16 @@ export class ShardLog implements OperationLog {
     const graph = foldOperations(ops)
     const foldMilliseconds = Math.round(performance.now() - start)
     const present = new Set(graph.entities.map((entity) => entity.name))
-    const orphanRelations = graph.relations.filter(
+    // The fold only returns a relation while both endpoints exist, so an orphan never
+    // appears in it: what is worth reporting is a relation *written* whose endpoint is
+    // gone — a line that does nothing and tells the operator something went missing.
+    const written = new Map<string, { from: string; to: string }>()
+    for (const op of ops) {
+      if (op.type === "relation.add") {
+        written.set(relationKey(op), { from: op.from, to: op.to })
+      }
+    }
+    const orphanRelations = [...written.values()].filter(
       (relation) => !present.has(relation.from) || !present.has(relation.to),
     ).length
     return {

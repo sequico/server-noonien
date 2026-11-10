@@ -712,7 +712,8 @@ them over composing `delete_*` + `create_*` (and each extension's description sa
 A model already knows the nine official tools, and a tool it does not know it will not call.
 
 The full graph is also exposed at the `memory://knowledge-graph` resource, and the window of
-`read_changes` at `memory://changes{?since}`. Both are read-only; clients can subscribe to them and
+`read_changes` at `memory://changes` (the last five minutes) or `memory://changes{?since}` for a
+named moment. Both are read-only; clients can subscribe to them and
 receive `notifications/resources/updated` whenever a mutation changes the graph — via
 `resources/subscribe` on the 2025-era protocol, or a `subscriptions/listen` stream on the
 2026-07-28 revision. The server speaks both: it answers the `initialize` handshake for 2025-era

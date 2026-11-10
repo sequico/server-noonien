@@ -130,6 +130,9 @@ describe("resolve_conflict", () => {
         { from: "Bob", to: "Atlantis", relationType: "lives in", keep: true },
       ]),
     ).rejects.toThrow(/not found/)
+    await expect(
+      graph.resolveConflicts([{ entityName: "Ghost", content: "x", keep: true }]),
+    ).rejects.toThrow(/not found/)
   })
 })
 
@@ -147,6 +150,16 @@ describe("set_observations", () => {
       (content) => content === "version" || content.startsWith("version: "),
     )
     expect(owned).toEqual(["version: 1.2"])
+  })
+
+  it("writing the value a key already holds changes nothing", async () => {
+    const { graph } = newGraph()
+    await seed(graph)
+    await graph.setObservations([{ entityName: "Ada", key: "version", value: "1.2" }])
+    const again = await graph.setObservations([{ entityName: "Ada", key: "version", value: "1.2" }])
+    expect(again.results[0]?.action).toBe("replaced")
+    const read = await graph.openNodes(["Ada"])
+    expect(read.entities[0]?.observations).toContain("version: 1.2")
   })
 
   it("refuses a key that contains a colon and a space, and a missing entity", async () => {

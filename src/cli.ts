@@ -99,23 +99,23 @@ async function exportGraph(out: string | undefined, keep: number, dryRun: boolea
   const existing = await snapshotNames(directory)
   const stamp = new Date().toISOString().replace(/[:.]/g, "-")
   const file = join(directory, `graph-${stamp}.json`)
-  if (keep > 0) {
-    // The new snapshot makes `existing.length + 1`, so the oldest beyond `keep` go.
-    const doomed = existing.slice(0, Math.max(existing.length + 1 - keep, 0))
-    for (const name of doomed) {
-      process.stdout.write(`${dryRun ? "would delete" : "deleting"} ${join(directory, name)}\n`)
-      if (!dryRun) {
-        await unlink(join(directory, name))
-      }
-    }
-  }
+  // The new snapshot makes `existing.length + 1`, so the oldest beyond `keep` would go.
+  const doomed = keep > 0 ? existing.slice(0, Math.max(existing.length + 1 - keep, 0)) : []
   if (dryRun) {
+    for (const name of doomed) {
+      process.stdout.write(`would delete ${join(directory, name)}\n`)
+    }
     process.stdout.write(`would write ${file}\n`)
     return
   }
   await mkdir(directory, { recursive: true })
-  // `wx` refuses to clobber: a snapshot that silently replaces another is not one.
+  // `wx` refuses to clobber: a snapshot that silently replaces another is not one. The
+  // write comes first, so a failed one never costs an older snapshot.
   await writeFile(file, text, { flag: "wx" })
+  for (const name of doomed) {
+    await unlink(join(directory, name))
+    process.stdout.write(`deleted ${join(directory, name)}\n`)
+  }
   process.stdout.write(`${file}\n`)
 }
 

@@ -469,4 +469,32 @@ describe("memory MCP server", () => {
       relations: [],
     })
   })
+
+  it("serves the changes window as a resource and a template, and reads both", async () => {
+    const client = start()
+    await client.initialize()
+    const templates = result<{ resourceTemplates: { uriTemplate: string }[] }>(
+      await client.request("resources/templates/list"),
+    ).resourceTemplates
+    expect(templates.map((template) => template.uriTemplate)).toContain("memory://changes{?since}")
+
+    await client.callTool("create_entities", {
+      entities: [{ name: "Ada", entityType: "person", observations: [] }],
+    })
+    const read = result<{ contents: { text: string }[] }>(
+      await client.request("resources/read", { uri: "memory://changes" }),
+    )
+    const body = JSON.parse(read.contents[0]?.text ?? "{}")
+    expect(body.entities.map((entity: { name: string }) => entity.name)).toContain("Ada")
+    expect(typeof body.until).toBe("string")
+
+    // The template needs its query, which is why the bare URI is a resource of its own.
+    const since = new Date(Date.now() - 3_600_000).toISOString()
+    const windowed = result<{ contents: { text: string }[] }>(
+      await client.request("resources/read", {
+        uri: `memory://changes?since=${encodeURIComponent(since)}`,
+      }),
+    )
+    expect(JSON.parse(windowed.contents[0]?.text ?? "{}").entities.length).toBeGreaterThan(0)
+  })
 })

@@ -1441,7 +1441,10 @@ function planResolve(
   drafts: OperationDraft[],
 ): ResolvedElement {
   const spec = elementSpec(input)
-  const relation = spec.relation
+  const { observation, relation } = spec
+  if (observation !== undefined && !entities.has(observation.entityName)) {
+    throw new Error(`Entity with name ${observation.entityName} not found`)
+  }
   if (relation !== undefined && input.keep) {
     for (const name of [relation.from, relation.to]) {
       if (!entities.has(name)) {
@@ -1568,16 +1571,20 @@ function planObservationSet(
     (content) => content === entry.key || content.startsWith(prefix),
   )
   const content = `${prefix}${entry.value}`
-  for (const previous of new Set(owned)) {
+  // Writing the value the key already holds must not delete it: only the contents that
+  // differ from the chosen one are tombstoned, and the chosen one is added only when absent.
+  const stale = owned.filter((previous) => previous !== content)
+  for (const previous of new Set(stale)) {
     drafts.push({ type: "observation.delete", entityName: entry.entityName, content: previous })
   }
-  if (!owned.includes(content)) {
+  const present = owned.includes(content)
+  if (!present) {
     drafts.push({ type: "observation.add", entityName: entry.entityName, content, slot: 0 })
   }
-  working.set(
-    entry.entityName,
-    observations.filter((value) => !owned.includes(value)).concat(content),
-  )
+  working.set(entry.entityName, [
+    ...observations.filter((value) => value === content || !stale.includes(value)),
+    ...(present ? [] : [content]),
+  ])
   return {
     entityName: entry.entityName,
     key: entry.key,

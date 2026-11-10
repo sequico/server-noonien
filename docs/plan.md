@@ -276,7 +276,7 @@ Two decisions shape this surface:
   drafts directly and reports `changed: false` where the fold already agreed.
 
 The full graph is served at the `memory://knowledge-graph` resource and the `read_changes` window at
-`memory://changes{?since}`: on the 2025-era protocol a client subscribes with `resources/subscribe`
+`memory://changes` and `memory://changes{?since}`: on the 2025-era protocol a client subscribes with `resources/subscribe`
 and receives `notifications/resources/updated` after every mutation; on the 2026-07-28 revision it
 opens a `subscriptions/listen` stream instead. The server speaks both.
 

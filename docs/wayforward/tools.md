@@ -258,7 +258,8 @@ primitive is a **fresh stamp on a chosen outcome**.
   because every write is durable history and a no-op write is noise.
 - Implementation writes the operation drafts and commits them, **not** through `addObservations` or
   `createRelations`: their skip-if-present rule is exactly what this tool has to bypass.
-- A relation can only be kept if both endpoints exist, the same rule `create_relations` enforces.
+- A relation can only be kept if both endpoints exist, the same rule `create_relations` enforces; an
+  observation can only be kept on an entity that exists, as `add_observations` requires.
 - Entity _types_ are not settled here: `update_entities` already tombstones and re-adds, which is a
   fresh stamp by construction.
 
@@ -368,19 +369,21 @@ An agent that refreshes its context each turn does not need a tool call: it need
 read, with a subscription. Same body as `read_changes`, same window.
 
 ```text
-memory://changes{?since}   →  the read_changes result, default window when since is absent
+memory://changes            →  the read_changes result for the last five minutes
+memory://changes{?since}    →  the same, from a moment the client names
 ```
 
-- Registered beside `memory://knowledge-graph`, in `registerGraphSubscriptions`, so a mutation already
-  notifies subscribers — no new notification path.
-- Reading without `since` answers the last five minutes, which is what a per-turn refresh wants.
-- A template, not a fixed URI: the client fills `since` from the `until` of the previous read.
+- Registered beside `memory://knowledge-graph`, through the subscription notifier, so a mutation
+  already notifies subscribers — no new notification path.
+- **Two registrations, one handler**: a URI template matches only when its query is present, so the
+  bare URI is a resource of its own; a per-turn refresh asks for that one, a client resuming from a
+  watermark asks for the template.
 - The tool stays: a resource is for a client that reloads context, a tool for a model that decides.
 
-Implementation: reuse `changes()`; list the template in the resource registration.
+Implementation: reuse `changes()` for both registrations.
 
-Tests: the template appears in the resource list; reading without `since` returns the default window;
-a mutation notifies a subscriber; the body equals `read_changes` for the same window.
+Tests: the template appears in `resources/templates/list`; both URIs read; a mutation notifies a
+subscriber; the body equals `read_changes` for the same window.
 
 **Undo:** remove the registration; nothing is stored.
 
@@ -438,7 +441,8 @@ fold 4 ms
   that have not moved in longer than a stated window; the fold time.
 - **A shard that has not moved is reported, not judged**: an idle node is not a defect, and `doctor`
   exits 0 on it. Only a parse failure or an operation the codec rejects is a defect.
-- Exit codes: 0 sound, 1 a defect, 2 unreadable store.
+- Exit codes: 0 sound, 1 a defect. An unreadable store throws, and the process exits non-zero — a
+  separate code for it would be a distinction nobody acts on differently.
 
 Implementation: `doctor()` on the log (it can see shards and lines), a `doctor` case in `src/cli.ts`.
 
@@ -650,9 +654,9 @@ Titles for the seven new tools, in the same order: `Read Changes`, `Find Nodes`,
 > already tombstoned changes nothing. An element that already stands as you ask is left untouched and
 > reported as unchanged, because every write is durable history.
 
-> `elements` — the elements to settle, one entry each. `entityName` and `content` name an observation;
-> `from`, `to` and `relationType` name a relation, which can only stand if both its endpoints do.
-> `keep` — true to make it stand, false to make it go.
+> `elements` — the elements to settle, one entry each. `entityName` and `content` name an observation,
+> which needs the entity to exist; `from`, `to` and `relationType` name a relation, which needs both
+> its endpoints. `keep` — true to make it stand, false to make it go.
 
 **`find_duplicates`**
 

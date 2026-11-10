@@ -54,8 +54,9 @@ Run `npm run gate` before claiming any work done. Zero errors, zero warnings.
 ## Adding or changing a tool
 
 1. Keep the nine official tool names, inputs and outputs identical (drop-in contract). Extensions
-   beside them are allowed while the nine stay exact; the `update_*`, `merge_entities` and
-   `read_conflicts` tools are the current ones.
+   beside them are allowed while the nine stay exact; the `update_*`, `merge_entities`,
+   `read_conflicts`, `resolve_conflict`, `read_changes`, `find_nodes`, `expand_nodes`,
+   `find_duplicates`, `read_history` and `set_observations` tools are the current ones.
 2. Model the change as operations in `src/graph/` — additive or tombstone (the `shard.compact`
    metadata op aside), never in-place mutation.
 3. If it touches merge/serialization/order, add or extend property tests for idempotence,

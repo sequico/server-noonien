@@ -184,15 +184,18 @@ nothing else.
 
 ### `noonien` — the maintenance CLI
 
-| Command                 | Does                                                                                                                                                                                                                                                                                          |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `noonien serve`         | run the MCP memory server over stdio (the same as `server-noonien`)                                                                                                                                                                                                                           |
-| `noonien import <file>` | import an official `server-memory` JSONL file (writes its own `<node>-import` shard, so it runs online)                                                                                                                                                                                       |
-| `noonien export`        | print the folded knowledge graph as JSON                                                                                                                                                                                                                                                      |
-| `noonien merge`         | fold every shard and report the merged state                                                                                                                                                                                                                                                  |
-| `noonien compact`       | maintain this node's shard now — prune shadowed operations and, only where it is safe, physically delete its tombstones (the server's own rule: `NOONIEN_GC`; a daemon that owns the directory keeps the whole view and the shard) — and prune **every** `*-import` shard the directory holds |
-| `noonien query <text>`  | search entities and print the matching subgraph                                                                                                                                                                                                                                               |
-| `noonien help`          | list the commands; `noonien --version` prints the version                                                                                                                                                                                                                                     |
+| Command                                 | Does                                                                                                                                                                                                                                                                                          |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `noonien serve`                         | run the MCP memory server over stdio (the same as `server-noonien`)                                                                                                                                                                                                                           |
+| `noonien import <file>`                 | import an official `server-memory` JSONL file (writes its own `<node>-import` shard, so it runs online)                                                                                                                                                                                       |
+| `noonien export`                        | print the folded knowledge graph as JSON                                                                                                                                                                                                                                                      |
+| `noonien merge`                         | fold every shard and report the merged state                                                                                                                                                                                                                                                  |
+| `noonien compact`                       | maintain this node's shard now — prune shadowed operations and, only where it is safe, physically delete its tombstones (the server's own rule: `NOONIEN_GC`; a daemon that owns the directory keeps the whole view and the shard) — and prune **every** `*-import` shard the directory holds |
+| `noonien query <text>`                  | search entities and print the matching subgraph                                                                                                                                                                                                                                               |
+| `noonien stats`                         | count the graph, name the largest entities and list what nobody has confirmed in 90 days; `--json` emits the same numbers as one object                                                                                                                                                       |
+| `noonien doctor`                        | verify the store — parse errors, torn lines, orphan relations, shards untouched for a week — and exit 1 on a defect. Read-only: it repairs nothing                                                                                                                                            |
+| `noonien export --out <dir> --keep <n>` | write a dated snapshot (`graph-<ISO>.json`) and delete the oldest beyond `n` (7 by default); `--dry-run` prints what it would do, `wx` refuses to clobber                                                                                                                                     |
+| `noonien help`                          | list the commands; `noonien --version` prints the version                                                                                                                                                                                                                                     |
 
 ### `nooniend` — the daemon
 
@@ -402,7 +405,8 @@ Used by the MCP server (and the `noonien` CLI, which reads and writes the same s
 | `NOONIEN_S3_REGION`           | `us-east-1`                | Region passed to the S3 client.                                                                                                                                                                                                                                                 |
 | `NOONIEN_S3_ENDPOINT`         | —                          | Custom endpoint for MinIO / R2 / Contabo and similar.                                                                                                                                                                                                                           |
 | `NOONIEN_S3_FORCE_PATH_STYLE` | on when an endpoint is set | Path-style requests.                                                                                                                                                                                                                                                            |
-| `NOONIEN_COMPACT_AFTER`       | `1000`                     | Compact the local shard online after this many appended operations (`0` disables).                                                                                                                                                                                              |
+| `NOONIEN_COMPACT_AFTER`       | `1000`                     | Compact the local shard after this many appended operations (`0` disables the count).                                                                                                                                                                                           |
+| `NOONIEN_COMPACT_BYTES`       | `8388608`                  | Compact once the shard this node authors has grown by this many bytes since the last pass (`0` disables). A count of operations cannot see size: one observation can weigh as much as a thousand.                                                                               |
 | `NOONIEN_GC`                  | off                        | Delete tombstones **without a daemon**: only where this node is the directory's only writer — a promise nothing in the directory can prove. Where a daemon owns the directory (it announces itself with its knowledge file from startup) it has no effect: the daemon collects. |
 
 `NOONIEN_GC` (server, default off) and the daemon's `NOONIEND_GC` (default on) are different
@@ -517,9 +521,12 @@ in operation order (`HLC`, `node`, `sequence`).
 The log grows with every mutation. Compaction rewrites this node's shard keeping, per element, only
 the operations that no later operation shadows — the shadow index is built from the **merged** log,
 so an operation superseded by _another node's_ later operation is dropped too, and the winner of
-every element always survives, tombstones included. It runs **online**: the server compacts its own
-shard after `NOONIEN_COMPACT_AFTER` appends, and `noonien compact` does the same by hand. When
-each also collects tombstones — the physical deletion — is under [Deletion and
+every element always survives, tombstones included. It runs **outside the write path**: a mutation
+only counts itself, and a pass runs when the shard has grown by `NOONIEN_COMPACT_BYTES` or
+`NOONIEN_COMPACT_AFTER` operations have been appended, from a timer in the server (with one attempt at
+startup), so no write waits behind a rewrite; a pass that fails to win the compare-and-swap backs off
+before trying again instead of retrying on every mutation. `noonien compact` does the same by hand.
+When each also collects tombstones — the physical deletion — is under [Deletion and
 collection](#deletion-and-collection). The rewrite is a compare-and-swap (a temporary file renamed
 over the shard on the `file` backend, a conditional write on `s3`), so a crash midway can never
 truncate it and a concurrent write — an append, or a gossip recovery — makes the whole compaction
@@ -660,30 +667,39 @@ maintenance, its `noonien_mcp_*` counters (`noonien_mcp_folds_total`, `noonien_m
 
 The MCP surface is the official nine, drop-in: names, inputs, outputs and messages match
 `@modelcontextprotocol/server-memory`. Extensions the official server does not have are added on top
-— an entity, a relation and an observation can be edited, two entities can be merged, and the
-elements more than one machine wrote are visible — and the nine are never changed. `read_graph` and
-`search_nodes` take an optional page and type filter; without them they answer exactly as before.
+— an entity, a relation and an observation can be edited, two entities can be merged, the elements
+more than one machine wrote are visible and can be settled, a window of changes can be read instead
+of the whole graph, a search can be written the way a query is spoken, a neighbourhood can be walked,
+and pairs that look like the same thing can be proposed — and the nine are never changed. `read_graph`
+and `search_nodes` take an optional page and type filter; without them they answer exactly as before.
 
 Each tool's description keeps the official sentence and adds what the contract does not fix: when to
 reach for the tool instead of a sibling, what it does to an entity that already exists, and how a
 batch fails. Every parameter carries a description too, so a client shows the shape without guessing.
 
-| Tool                  | Does                                                                                                              |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `create_entities`     | create multiple new entities in the knowledge graph                                                               |
-| `create_relations`    | create multiple new relations between entities (active voice)                                                     |
-| `add_observations`    | add new observations to existing entities                                                                         |
-| `delete_entities`     | delete entities and their associated relations                                                                    |
-| `delete_observations` | delete specific observations from entities                                                                        |
-| `delete_relations`    | delete multiple relations                                                                                         |
-| `read_graph`          | read the entire knowledge graph                                                                                   |
-| `search_nodes`        | search nodes by a query, matched against entity names, types and observation content                              |
-| `open_nodes`          | open specific nodes by their names                                                                                |
-| `update_entities`     | rename existing entities and/or change their entity type, moving their observations and relations                 |
-| `update_observations` | replace observation contents on existing entities                                                                 |
-| `update_relations`    | change the type of existing relations and/or repoint their endpoints                                              |
-| `merge_entities`      | merge an entity into another: the union of their observations, its relations repointed, the merged entity deleted |
-| `read_conflicts`      | list the elements more than one node has written, with their authors                                              |
+| Tool                  | Does                                                                                                     |
+| --------------------- | -------------------------------------------------------------------------------------------------------- |
+| `create_entities`     | create multiple new entities in the knowledge graph                                                      |
+| `create_relations`    | create multiple new relations between entities (active voice)                                            |
+| `add_observations`    | add new observations to existing entities                                                                |
+| `delete_entities`     | delete entities and their associated relations                                                           |
+| `delete_observations` | delete specific observations from entities                                                               |
+| `delete_relations`    | delete multiple relations                                                                                |
+| `read_graph`          | read the entire knowledge graph                                                                          |
+| `search_nodes`        | search nodes by a query, matched against entity names, types and observation content                     |
+| `open_nodes`          | open specific nodes by their names                                                                       |
+| `update_entities`     | rename existing entities and/or change their entity type, moving their observations and relations        |
+| `update_observations` | replace observation contents on existing entities                                                        |
+| `update_relations`    | change the type of existing relations and/or repoint their endpoints                                     |
+| `merge_entities`      | merge an entity into another, with an optional `dryRun` that reports the consequences without writing    |
+| `read_conflicts`      | list the elements more than one node has written, with what each node left and when                      |
+| `resolve_conflict`    | settle a contested element: keep it or drop it, with a stamp newer than anything in the log              |
+| `read_changes`        | read only what changed in a window, with the names deleted in it                                         |
+| `find_nodes`          | search the way a query is written: every word must match, a word matches a prefix, results are ranked    |
+| `expand_nodes`        | walk out from the entities you name: every entity within `depth` hops, and the relations that touch them |
+| `find_duplicates`     | propose pairs of entities that may be the same thing, by normalised name or by content                   |
+| `read_history`        | the operations that touched an entity, newest first, with their timestamp, node and kind                 |
+| `set_observations`    | keep one fact current: write `key: value`, replacing everything that key already held                    |
 
 ## Drop-in compatibility
 
@@ -695,11 +711,12 @@ The `initialize` result also carries `instructions` naming the extension tools a
 them over composing `delete_*` + `create_*` (and each extension's description says what it replaces).
 A model already knows the nine official tools, and a tool it does not know it will not call.
 
-The full graph is also exposed at the `memory://knowledge-graph` resource. The resource is
-read-only; clients can subscribe to it and receive `notifications/resources/updated` whenever a
-mutation changes the graph — via `resources/subscribe` on the 2025-era protocol, or a
-`subscriptions/listen` stream on the 2026-07-28 revision. The server speaks both: it answers the
-`initialize` handshake for 2025-era clients and `server/discover` for 2026-07-28 clients.
+The full graph is also exposed at the `memory://knowledge-graph` resource, and the window of
+`read_changes` at `memory://changes{?since}`. Both are read-only; clients can subscribe to them and
+receive `notifications/resources/updated` whenever a mutation changes the graph — via
+`resources/subscribe` on the 2025-era protocol, or a `subscriptions/listen` stream on the
+2026-07-28 revision. The server speaks both: it answers the `initialize` handshake for 2025-era
+clients and `server/discover` for 2026-07-28 clients.
 
 Entities are keyed by name. Observations behave like the official server: `add_observations` has no
 effect when the content is already present, but preserves duplicate contents within a single

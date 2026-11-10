@@ -31,7 +31,9 @@ if it was not run by hand.
 
 1. Keep the drop-in contract: the same nine tools as `@modelcontextprotocol/server-memory`, with the
    same names, inputs and outputs. Extensions are allowed alongside them as long as the nine stay
-   exact; the `update_*`, `merge_entities` and `read_conflicts` tools are the current ones.
+   exact; the `update_*`, `merge_entities`, `read_conflicts`, `resolve_conflict`, `read_changes`,
+   `find_nodes`, `expand_nodes`, `find_duplicates`, `read_history` and `set_observations` tools are
+   the current ones.
 2. Model behaviour as CRDT operations — additive or tombstone, never an in-place mutation — and add
    or extend the property tests when a change touches merge, serialization or ordering.
 3. Add unit tests for the logic, keep the tree clean (no leftover files), and do not commit

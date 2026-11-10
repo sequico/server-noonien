@@ -202,8 +202,9 @@ the agent sees that a neighbour exists and not what it says.
 ```
 
 `depth` defaults to 1, capped at 5; `limit` caps the entities (200 by default) and sets `truncated`; a
-name that does not exist is skipped. Relations are the incident ones every other read uses, so depth 1
-answers what `open_nodes` answers plus `truncated`.
+name that does not exist is skipped. Relations are the incident ones every other read uses, so the
+relation set matches what `open_nodes` reports for the starting entities — and the entities are the
+ones the walk reaches, which is the point of the tool.
 
 Implementation: BFS over an adjacency map built once per call, neighbours in name order so the cap
 drops the far frontier, then sorted by name.
@@ -433,8 +434,8 @@ fold 4 ms
 - **Read-only.** Nothing is repaired, rewritten or quarantined: a tool that repairs is a tool that can
   destroy, and the repair decision is the owner's. `--fix-torn` may come later, as a separate command.
 - Checks: every shard parses line by line; a torn final line is reported as such; relations whose
-  endpoints are absent from the fold; payloads the codec does not know; shards that have not moved in
-  longer than a stated window; the fold time.
+  endpoints are absent from the fold; any line the codec rejects, an unknown payload included; shards
+  that have not moved in longer than a stated window; the fold time.
 - **A shard that has not moved is reported, not judged**: an idle node is not a defect, and `doctor`
   exits 0 on it. Only a parse failure or an operation the codec rejects is a defect.
 - Exit codes: 0 sound, 1 a defect, 2 unreadable store.

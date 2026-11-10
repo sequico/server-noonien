@@ -186,8 +186,14 @@ on a specific provider.
   collects immediately — the official server's physical deletion, without giving up convergence in a
   mesh. Without the daemon collection needs the operator's promise (`NOONIEN_GC`: this directory is
   written by this node alone) and a directory that proves it — a peer that is absent or not yet
-  synced leaves no trace — so the server's online maintenance and `noonien compact` prune only
+  synced leaves no trace — so the server's maintenance and `noonien compact` prune only
   until it is declared, and refuse when the declaration is contradicted by another node's shard.
+  **Why the server cannot borrow the daemon's guard:** the decision needs the per-author frontiers of
+  every peer (`Collection.peers`) and this node's own high-water marks, while the daemon's
+  `/watermark` reports one stable high-water mark per shard — enough to say how far a peer has got,
+  not which author could still hold an unseen operation on an element. A guard built from it would
+  answer "safe" where it cannot know, so the guard stays the daemon's and the server keeps its
+  promise.
   Where a daemon owns the directory it holds the peer knowledge and collects, so it is the only
   writer that maintains the shard: the server and `noonien compact` keep their whole view there,
   because a shadowed operation is the evidence the daemon's gate reads. The daemon replicates a
@@ -245,17 +251,34 @@ on a specific provider.
 | `update_relations`    | additive + tombstone |
 | `merge_entities`      | additive + tombstone |
 | `read_conflicts`      | read                 |
+| `resolve_conflict`    | additive + tombstone |
+| `read_changes`        | read                 |
+| `find_nodes`          | read                 |
+| `expand_nodes`        | read                 |
+| `find_duplicates`     | read                 |
+| `read_history`        | read                 |
+| `set_observations`    | additive + tombstone |
 
-The nine official tools are drop-in. The `update_*`, `merge_entities` and `read_conflicts`
-extensions are additions the official server does not have: an edit or a merge is a tombstone of
-what it replaces plus an add of what it becomes, so they introduce no operation type and leave the
-nine unchanged. `read_graph`/`search_nodes` take optional paging (and a type filter) that default to
-the official behaviour.
+The nine official tools are drop-in. The `update_*`, `merge_entities`, `read_conflicts`,
+`resolve_conflict`, `read_changes`, `find_nodes`, `expand_nodes`, `find_duplicates`, `read_history`
+and `set_observations` extensions are additions the official server does not have: an edit, a merge,
+a settle or a `key: value` write is a tombstone of what it replaces plus an add of what it becomes,
+so they introduce no operation type and leave the nine unchanged. `read_graph`/`search_nodes` take
+optional paging (and a type filter) that default to the official behaviour.
 
-The full graph is also served at the `memory://knowledge-graph` resource: on the 2025-era protocol a
-client subscribes with `resources/subscribe` and receives `notifications/resources/updated` after
-every mutation; on the 2026-07-28 revision it opens a `subscriptions/listen` stream instead. The
-server speaks both.
+Two decisions shape this surface:
+
+- **A better search is a tool beside the nine, never a change to them.** `find_nodes` matches every
+  word as a prefix and ranks the results; `search_nodes` stays the literal substring, and neither
+  contains the other.
+- **A conflict is settled by a fresh stamp, not by re-creating.** A create of what already exists is
+  skipped and a delete already in the log changes nothing, so `resolve_conflict` writes the operation
+  drafts directly and reports `changed: false` where the fold already agreed.
+
+The full graph is served at the `memory://knowledge-graph` resource and the `read_changes` window at
+`memory://changes{?since}`: on the 2025-era protocol a client subscribes with `resources/subscribe`
+and receives `notifications/resources/updated` after every mutation; on the 2026-07-28 revision it
+opens a `subscriptions/listen` stream instead. The server speaks both.
 
 ## CLI
 
@@ -266,14 +289,21 @@ it serves over stdio, so the package name and the client entry are the same. The
 - `noonien import <memory.jsonl>` — migrate an existing official-server graph (writes its own
   `<node>-import` shard, so it runs online; the shard is pruned by `import` and by `compact` — it
   only ever adds, so it needs neither the peer knowledge nor the promise).
-- `noonien export` — dump the folded graph.
+- `noonien export` — dump the folded graph; `--out <dir> --keep <n>` writes a dated snapshot and
+  prunes the oldest beyond `n` (7 by default), refusing to clobber one, so a timer needs no logic.
 - `noonien merge` — fold every shard and report the merged state.
 - `noonien compact` — maintain the local shard now: prune the shadowed operations and, when safe,
-  physically delete its tombstones (the server runs the same maintenance online); where a daemon
+  physically delete its tombstones (the server runs the same maintenance, outside the write path and
+  on a timer); where a daemon
   owns the directory it keeps the whole view and leaves the shard to the daemon. It also prunes
   every `*-import` shard in the directory, a peer's replicated one included: such a shard only ever
   adds, so its shadowed operations are the only thing that can go (its surviving tombstones, if any,
   are kept), and the conflicts a one-off migration leaves behind clear from any node.
+- `noonien stats` — count the graph, the type spread, the largest entities and what nobody has
+  confirmed in 90 days; `--json` emits the same numbers as one object for a timer.
+- `noonien doctor` — verify the store: parse errors, torn lines, orphan relations, shards untouched
+  for a week. Read-only, and exits 1 on a defect; a repair is a different decision and a different
+  command.
 - `noonien query <text>` — search entities and print the matching subgraph.
 - `noonien help` — list the commands; `--version` prints the version.
 

@@ -9,11 +9,32 @@ version and its date.
 
 ## Unreleased
 
-- **Richer tool descriptions and parameter docs.** Each of the fourteen tools now says when to
+- **Seven new tools.** `read_changes` reads only what moved in a window, with the names deleted in
+  it; `find_nodes` searches the way a query is written (every word must match, a word matches a
+  prefix, results are ranked) beside the literal `search_nodes`; `expand_nodes` walks a neighbourhood
+  out from the entities named; `resolve_conflict` settles an element two machines wrote with a stamp
+  newer than anything in the log; `find_duplicates` proposes pairs that may be the same thing, by
+  normalised name or by content; `read_history` reports who wrote an entity and when; and
+  `set_observations` keeps a `key: value` fact current, collapsing a drifted twin.
+- **`read_conflicts` now carries what each node left and when**, not just its name, and
+  `merge_entities` takes a `dryRun` that reports the observations joined, the relations repointed and
+  the name that disappears without writing anything.
+- **The `read_changes` window is also a resource**, `memory://changes{?since}`, subscribable like the
+  graph.
+- **`noonien stats` and `noonien doctor`.** `stats` counts the graph, the type spread, the largest
+  entities and what nobody has confirmed in 90 days (`--json` for a timer); `doctor` verifies the
+  store — parse errors, torn lines, orphan relations, shards untouched for a week — and exits 1 on a
+  defect, read-only. `noonien export --out <dir> --keep <n>` writes dated snapshots and prunes the
+  oldest beyond `n`.
+- **Compaction runs outside the write path and by bytes.** `NOONIEN_COMPACT_BYTES` (default 8 MiB of
+  growth) trips with the existing operation count, a timer in the server runs the pass (with one
+  attempt at startup, because a session may close first), and a failed pass backs off instead of
+  retrying on every mutation. The folded graph is unchanged by construction.
+- **Richer tool descriptions and parameter docs.** Each tool now says when to
   reach for it instead of a sibling, what happens to an entity that already exists, and how a batch
-  fails; every parameter carries a description. Names, inputs and outputs are unchanged, so a
-  drop-in client sees the same surface — only the metadata an agent reads got fuller (Glama's TDQS
-  scored the inherited one-sentence descriptions at 2.8-3.8 of 5).
+  fails; every parameter carries a description. Names, inputs and outputs of the nine are unchanged,
+  so a drop-in client sees the same surface — only the metadata an agent reads got fuller (Glama's
+  TDQS scored the inherited one-sentence descriptions at 2.8-3.8 of 5).
 
 ## 1.2.0 (2026-11-08)
 

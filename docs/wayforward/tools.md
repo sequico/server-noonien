@@ -1,7 +1,7 @@
 # server-noonien — Tool extension plan (1.3.0)
 
-One plan for the additions to the surface an agent and its operator see, and for the public documents
-that have to describe them: one work breakdown, one order, one release. This document is
+One plan for the additions to the surface an agent and its operator see, and for the public
+documents that have to describe them: one work breakdown, one order, one release. This document is
 **forward-looking** — it exists until 1.3.0 ships, then each unit's content moves into `README.md`
 (tool table, CLI list) and `docs/plan.md` (tool surface, decisions) and the file is deleted. It never
 describes history, and never restates what those two already say.
@@ -33,11 +33,12 @@ and an MCP tool for an operator fact would widen the surface an agent reads for 
   accident**, and so an agent that could use one finds it.
 - **Descriptions carry the behaviour**, in the current style: the official sentence where one exists,
   then when to use the tool instead of a sibling and how it fails. Every parameter gets a
-  `describe()`.
-- **Reads notify nothing; the one write notifies once**, through the existing `onMutate`.
-- **Each unit lands complete**: code, tests, its `README.md`/`docs/plan.md` row and its `CHANGELOG.md`
-  line under `Unreleased`, in one commit. The docs describe the current state, so they cannot trail
-  the code to a final sweep.
+  `describe()`; the exact words are in _The words an agent reads_ below.
+- **Reads notify nothing; the one write notifies once**, through the existing `onMutate`. Every new
+  read tool carries `annotationsRead`, and `set_observations` the annotations of an edit.
+- **Each unit lands complete**: code, tests, its `README.md`/`docs/plan.md` row and its
+  `CHANGELOG.md` line under `Unreleased`, in one commit. The docs describe the current state, so they
+  cannot trail the code to a final sweep.
 - **The gate runs once, before the push** (project rule), on the whole tree. Unit commits are read
   back by hand.
 
@@ -69,6 +70,87 @@ Everything else in this plan is implementation, decided here and not asked again
 
 Steps 1–5 are independent of each other and of D1: 1.3.0 can ship without step 6, and the upsert
 follows as 1.3.1. That is the only contingency in this plan.
+
+---
+
+## The words an agent reads
+
+An agent picks a tool from its description, so the description is a deliverable of the unit, not a note
+about it. Each block below is copied **verbatim** into `description`, and its parameter lines into the
+`describe()` calls, in the same commit as the behaviour. Where a block and a unit's bullets disagree,
+the bullets win and the block is corrected. The nine drop-in descriptions do not change, and Glama's
+TDQS scores these words, so they are written to be read by a model rather than skimmed by a human.
+
+Titles, in the same order: `Read Changes`, `Find Nodes`, `Expand Nodes`, `Find Duplicates`,
+`Set Observations`.
+
+**`read_changes`**
+
+> Read only what changed in a window you choose: the entities touched in it, as they are now, and the
+> names deleted in it. Use it instead of `read_graph` when you are coming back to a memory you already
+> know — the whole graph for two changed entities costs the context you came to use. The window
+> reaches five minutes further back than you ask, so a change written by a peer with a slightly
+> lagging clock is not lost, and reading the same window twice is harmless. It also returns `until`,
+> the moment it stopped at, in this node's clock: pass that back as `since` and the next read
+> continues from there.
+
+> `since` — the ISO-8601 moment to read after; omit it for the last five minutes, or pass the moment a
+> previous call returned to continue where that call stopped. `limit`/`offset` — page the touched
+> entities, which come in name order.
+
+**`find_nodes`**
+
+> Search the graph the way a query is written, not as a literal string: every word must match, a word
+> matches the beginning of a longer one, and the best matches come first. Use it instead of
+> `search_nodes` when the query is more than one word, or when a word may be spelled differently —
+> `ports` for `port`. `search_nodes` is the literal-substring search and stays for exactly that. A word
+> that matches nothing makes the result empty rather than failing the call.
+
+> `query` — the words to look for. `entityType` — keep only entities of exactly this type.
+> `limit`/`offset` — page the ranked results, best first.
+
+**`expand_nodes`**
+
+> Walk out from the entities you name: every entity within `depth` hops, with the relations that touch
+> them. Use it instead of `read_graph` to assemble the context around a topic, and instead of
+> `open_nodes` when the neighbours' content matters as much as the entity you started from. The walk
+> ignores direction, stops on cycles, and skips names that do not exist rather than failing. When
+> `limit` binds, `truncated` is true and the farthest entities are the ones left out.
+
+> `names` — the entities to start from. `depth` — how many hops to walk, 1 by default and at most 5.
+> `limit` — the most entities to return, 200 by default.
+
+**`find_duplicates`**
+
+> Propose pairs of entities that look like the same thing: names that differ only by case, spacing,
+> punctuation or a suffix such as `.service`, and observations that overlap. It is read-only — the
+> merge stays `merge_entities`, which needs a pair you already believe in. A score is a hint, not a
+> verdict: read both entities before merging them.
+
+> `threshold` — the lowest score to report, 0.75 by default. `limit` — the most pairs to return, 20 by
+> default, best first.
+
+**`set_observations`**
+
+> Keep one fact current: write `key: value` on an entity, replacing every observation that key already
+> holds, so a drifted twin cannot survive. Use it instead of `update_observations` when the value
+> changes over time — a version, a status — and you should not have to remember its previous text. An
+> observation belongs to a key when it is exactly the key or starts with the key, a colon and a space,
+> and a key may not itself contain a colon followed by a space. A missing entity fails as
+> `add_observations` does: create it with `create_entities` first.
+
+> `entries` — one entry per fact. `entityName` — the entity that holds it. `key` — the name of the
+> fact, matched at the start of an observation. `value` — what the fact is now.
+
+**`instructions`** — the tail of the constant in `src/server.ts`, replacing its last sentence rather
+than adding one:
+
+> … For a large graph, page `read_graph` and `search_nodes` with limit/offset, and filter
+> `search_nodes` by entityType; `find_nodes` searches the way a query is written — every word must
+> match, results are ranked — while `search_nodes` is the literal substring. `read_changes` reads what
+> moved in a window instead of the whole graph, `expand_nodes` walks a neighbourhood out from the
+> entities you name, and `find_duplicates` proposes pairs that look like the same thing. To keep a
+> fact current, `set_observations` writes `key: value` and replaces what that key held.
 
 ---
 
@@ -288,7 +370,7 @@ standing.
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | `README.md`                             | four new rows in the tool table (five with `set_observations`, when D1 says yes); `stats` in the CLI list; the two searches and how they differ; `read_changes`'s window; the Documentation list with the `docs/wayforward/tools.md` line removed         | edit             |
 | `docs/plan.md`                          | four `read` rows in the tool surface table, `set_observations` as additive + tombstone when D1 says yes; `stats` in the CLI list; _Current state_ naming the new reads; the decision that a better search is a tool beside the nine, never a change to it | edit             |
-| `CHANGELOG.md`                          | `Unreleased` cut into `1.3.0` with its date, the lines already written by the units                                                                                                                                                                       | edit             |
+| `CHANGELOG.md`                          | `Unreleased` cut into `1.3.0` with its date, the lines the units wrote plus the one already on main for the enriched tool descriptions                                                                                                                    | edit             |
 | `CONTRIBUTING.md`                       | the drop-in paragraph lists the extensions (`update_*`, `merge_entities`, `read_conflicts`): it must list the new ones too                                                                                                                                | edit             |
 | `mcpb/manifest.json`                    | `long_description` names the extensions — add these; **never** the version, release-please owns it                                                                                                                                                        | edit description |
 | `AGENTS.md`                             | the compatibility contract names the current extensions — project law, so the owner approves the wording                                                                                                                                                  | edit with owner  |

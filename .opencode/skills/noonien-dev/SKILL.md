@@ -27,7 +27,7 @@ src/graph/          CRDT model: types, operations (the nine operations + shard.c
 src/store/          shard log: read every shard, append to and compact the local one (online)
 src/sync/           sync backends behind one interface: backend, file, s3, s3-aws, memory
 src/gossip/         daemon: address, bootstrap, collection, config, daemon, digest, exchange, hook, knowledge, membership, protocol, replica, sampler, server, transport, types
-scripts/            release preflight, MCPB bundle and the Smithery publish (not shipped)
+scripts/            release preflight and the MCPB bundle (not shipped in the package)
 test/               Vitest: unit, integration and CRDT property tests
 docs/wayforward/    forward-looking plans: scaling.md, tools.md (not current state)
 ```
@@ -47,7 +47,6 @@ npm run gate        # all of the above
 
 npm run release:check   # release preflight: versions, packaged bins, changelog heading
 npm run mcpb            # build server-noonien-<version>.mcpb
-npm run publish:smithery -- --dry-run   # the ServerCard the next release would publish
 ```
 
 Run `npm run gate` before claiming any work done. Zero errors, zero warnings.

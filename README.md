@@ -782,14 +782,11 @@ npm run audit       # npm audit --audit-level=high
 npm run gate        # all of the above, the audit first
 
 npm run release:check   # version artifacts agree, every bin is packed, the changelog matches
-npm run mcpb            # build server-noonien-<version>.mcpb (Claude Desktop / Smithery Local)
-npm run publish:smithery -- --dry-run   # the Smithery ServerCard this release would publish
+npm run mcpb            # build server-noonien-<version>.mcpb for Claude Desktop
 ```
 
-The distribution is npm; the extra commands are for the channels that need a file rather
-than a package — the MCPB bundle for Claude Desktop and Smithery's Local track — and for
-the release preflight. Publishing the Smithery release needs `SMITHERY_API_KEY` and
-`SMITHERY_SERVER` in the environment and the bundle from `npm run mcpb`.
+The distribution is npm; the extra commands build a file for the one channel that takes a file
+rather than a package — the MCPB bundle for Claude Desktop — and run the release preflight.
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow and the ground rules.
 

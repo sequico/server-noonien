@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 /**
- * Build the MCPB bundle (formerly DXT): the file Claude Desktop installs in one click
- * and the Smithery Local track uploads. The repository holds the manifest and the icon
+ * Build the MCPB bundle (formerly DXT): the file Claude Desktop installs in one click.
+ * The repository holds the manifest and the icon
  * only, so this stages them with the built server — `dist/` plus the production
  * dependencies — and packs the result. Writes `server-noonien-<version>.mcpb` at the
  * repository root.

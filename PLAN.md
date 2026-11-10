@@ -323,8 +323,8 @@ are now — no history, no before/after, no changelog — and are revised alongs
   the tool surface, the CLI, distribution, testing and the current state. Work that is explicitly
   forward-looking is kept under a `## Planned:` heading, labelled as such and separate from the
   current-state description.
-- **SCALING.md** — a forward-looking plan (not current state): the partial-replication model for
-  1,000 / 10,000 nodes, built on the foundations listed there.
+- **`docs/wayforward/scaling.md`** — a forward-looking plan (not current state): the
+  partial-replication model for 1,000 / 10,000 nodes, built on the foundations listed there.
 
 ## Planned: inspection tooling
 
@@ -401,7 +401,7 @@ ES modules and inline SVG; no bundler and no framework in the toolchain or the r
   frontier plus durable blankets); fanout-capped peer sampling with a seeded RNG and opt-in relays;
   a fixed-size shard digest above a threshold behind an additive `/info` capability; a membership
   channel split; and a stable watermark kept conservative across rounds. The scaling plan (partial
-  replication) is in `SCALING.md`.
+  replication) is in `docs/wayforward/scaling.md`.
 - **Packaging** — npm metadata and three commands (`server-noonien`, `noonien`, `nooniend`) on the
   public npm registry; CI (Node 22/24/26) runs the gate and verifies the packed tarball; releases
   are automated with **release-please** and **Trusted Publishing** — a single manual trigger opens

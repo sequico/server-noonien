@@ -835,7 +835,8 @@ them._
 ## Documentation
 
 - [`PLAN.md`](PLAN.md) — architecture and design decisions.
-- [`SCALING.md`](SCALING.md) — the forward-looking plan for 1,000 / 10,000 nodes.
+- [`docs/wayforward/scaling.md`](docs/wayforward/scaling.md) — the forward-looking plan for 1,000 /
+  10,000 nodes.
 - [`docs/wayforward/tools.md`](docs/wayforward/tools.md) — the forward-looking plan for the tool
   extensions.
 - [`PROTOCOL.md`](PROTOCOL.md) — the `nooniend` wire protocol: transport, messages, limits and

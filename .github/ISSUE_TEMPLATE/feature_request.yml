@@ -5,8 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the idea. `PLAN.md` describes the design and `SCALING.md` the direction; please
-        search the existing issues first.
+        Thanks for the idea. `PLAN.md` describes the design and
+        `docs/wayforward/` the direction; please search the existing issues first.
   - type: textarea
     id: problem
     attributes:

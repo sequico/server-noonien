@@ -55,7 +55,8 @@ All repository content — code, identifiers, comments, docs and commit messages
   user-visible change**: one line per release, the pending change under `Unreleased`. release-please
   writes the version, the tag and the GitHub Release, never this file.
 - **Docs** — `README.md`/`PLAN.md` describe the current state only: no history, no changelog.
-  `SCALING.md` is forward-looking, and the report in `docs/` is frozen at the release it pins.
+  `docs/wayforward/` holds what is forward-looking (the scaling plan, the tool extension plan), and
+  the report in `docs/` is frozen at the release it pins.
 - Use the latest online documentation for libraries instead of relying on memory.
 
 ## Commands

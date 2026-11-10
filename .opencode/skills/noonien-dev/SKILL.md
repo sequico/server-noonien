@@ -29,7 +29,7 @@ src/sync/           sync backends behind one interface: backend, file, s3, s3-aw
 src/gossip/         daemon: address, bootstrap, collection, config, daemon, digest, exchange, hook, knowledge, membership, protocol, replica, sampler, server, transport, types
 scripts/            release preflight, MCPB bundle and the Smithery publish (not shipped)
 test/               Vitest: unit, integration and CRDT property tests
-SCALING.md          forward-looking scaling plan (not current state)
+docs/wayforward/    forward-looking plans: scaling.md, tools.md (not current state)
 ```
 
 The package ships **three commands**: `server-noonien` (the MCP server), `noonien` (the CLI) and

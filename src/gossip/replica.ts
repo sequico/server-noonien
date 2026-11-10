@@ -53,7 +53,7 @@ function assertBelongsTo(node: string, ops: readonly Operation[]): void {
  * filling the directory with one file each. It is also the decode cache's cap: a
  * cache below it would not save memory above it, it would re-decode every shard on
  * every read — the same cost the model already accepts for holding the mesh (see
- * `SCALING.md`).
+ * `docs/wayforward/scaling.md`).
  */
 const MAX_HELD_SHARDS = MAX_LIST_ENTRIES
 

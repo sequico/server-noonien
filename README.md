@@ -836,6 +836,7 @@ them._
 
 - [`PLAN.md`](PLAN.md) — architecture and design decisions.
 - [`SCALING.md`](SCALING.md) — the forward-looking plan for 1,000 / 10,000 nodes.
+- [`TOOLS-PLAN.md`](TOOLS-PLAN.md) — the forward-looking plan for the tool extensions.
 - [`PROTOCOL.md`](PROTOCOL.md) — the `nooniend` wire protocol: transport, messages, limits and
   security.
 - [`docs/paper.md`](docs/paper.md) — the technical report: the model, the tombstone-collection

@@ -361,9 +361,9 @@ Tests: a fixture directory with one broken link fails; the repository passes.
 ### 15 · Public docs review
 
 Each unit owns its own README/PLAN/CHANGELOG rows. What no unit owns is the rest of the public
-surface, reviewed once, after the last unit, as a **read** rather than a search-and-replace: every
-sentence that names a tool, counts them or names a command is compared with the tree, and a claim that
-cannot be checked there is rewritten or deleted.
+surface, reviewed once, with every feature already in the tree, as a **read** rather than a
+search-and-replace: every sentence that names a tool, counts them or names a command is compared with
+the tree, and a claim that cannot be checked there is rewritten or deleted.
 
 | Artifact                                | What it must say after 1.3.0                                                                                                                                                       | Action           |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |

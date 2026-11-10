@@ -628,7 +628,7 @@ only writer that maintains the shard: the server and `noonien compact` keep thei
 and leave the shard to the daemon. With no daemon there is no knowledge to gate on, and the
 directory **cannot** tell whether a peer is merely absent: a machine that is offline, or configured
 but not yet synced, leaves nothing to see, and its unsynced write would be lost by a collection —
-which is the immediate deletion the official server performs. So the server's online maintenance and
+which is the immediate deletion the official server performs. So the server's own maintenance and
 `noonien compact` both prune only, until the operator declares the directory written by **this node
 alone** (`NOONIEN_GC=true`), the promise that makes it sound; a declaration contradicted by another
 node's shard is refused and reported.

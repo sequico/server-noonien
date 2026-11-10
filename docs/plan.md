@@ -62,7 +62,7 @@ Properties required and tested:
   shard on the `file` backend, a conditional write on `s3`), so a crash midway cannot truncate it.
 - A shard is **single-writer**: exactly one author per node id. The `file` backend serializes
   `append` and `replace` through a per-shard lock and `s3` through conditional writes, so the
-  writers — the server, the online compaction, the `nooniend` daemon recovering the own shard —
+  writers — the server, the compaction timer, the `nooniend` daemon recovering the own shard —
   never race or drop a write; a compaction that loses the compare-and-swap re-reads and retries.
   An append carries the state its sequence numbers were derived from, so a second writer on one
   node id is refused and re-derives instead of spending a sequence already spent: the two writers
@@ -412,9 +412,10 @@ ES modules and inline SVG; no bundler and no framework in the toolchain or the r
   `help`; `import` migrates an official `memory.jsonl`.
 - **S3 backend** — shards as objects written with versioned conditional writes that are retried on
   contention, verified against an S3-compatible store.
-- **Compaction** — online in the server and by hand via `noonien compact`, preserving the merged
-  graph.
-- **Collection without a daemon** — the server's online maintenance and `noonien compact` share one
+- **Compaction** — outside the write path in the server (a timer, with one attempt at startup, by
+  bytes or by operation count, backing off after a failure) and by hand via `noonien compact`,
+  preserving the merged graph.
+- **Collection without a daemon** — the server's maintenance and `noonien compact` share one
   decision: keep the tombstones and prune the shadowed operations, unless the operator declares the
   directory written by this node alone (`NOONIEN_GC`, default off) and no other node's shard
   contradicts it; where a daemon owns the directory it is the only writer that maintains the shard,

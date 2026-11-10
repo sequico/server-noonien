@@ -631,16 +631,32 @@ describe("MemoryGraph", () => {
     const graph = new MemoryGraph(new ShardLog(backend, "node"), undefined, { compactAfter: 2 })
     await graph.createEntities([{ name: "A", entityType: "t", observations: ["x"] }])
     await graph.createEntities([{ name: "B", entityType: "t", observations: [] }])
+    const before = await graph.readGraph()
     await graph.maintain()
     const own = decodeOperations((await backend.read("node.jsonl")) ?? "")
     expect(own.some((op) => op.type === "shard.compact")).toBe(true)
-    expect(await graph.readGraph()).toEqual({
-      entities: [
-        { name: "A", entityType: "t", observations: ["x"] },
-        { name: "B", entityType: "t", observations: [] },
-      ],
-      relations: [],
+    // The pass rewrites the log; the folded graph is what it must leave untouched.
+    expect(await graph.readGraph()).toEqual(before)
+  })
+
+  it("backs off after a failed pass instead of retrying on every mutation", async () => {
+    let attempts = 0
+    class ContendedBackend extends MemoryBackend {
+      override async replace(): Promise<void> {
+        attempts += 1
+        throw new Error("contended")
+      }
+    }
+    const graph = new MemoryGraph(new ShardLog(new ContendedBackend(), "node"), undefined, {
+      compactAfter: 1,
     })
+    await graph.createEntities([{ name: "A", entityType: "t", observations: [] }])
+    await graph.maintain()
+    expect(attempts).toBe(1)
+    // The next pass is inside the backoff window: it must not touch the store again.
+    await graph.maintain()
+    expect(attempts).toBe(1)
+    expect((await graph.readGraph()).entities.map((entity) => entity.name)).toEqual(["A"])
   })
 
   it("collects tombstones when maintenance is asked for and the guard allows it", async () => {

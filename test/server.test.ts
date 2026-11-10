@@ -281,6 +281,34 @@ describe("memory MCP server", () => {
     }
   })
 
+  it("gives every tool a title and every property a description, items included", async () => {
+    type SchemaNode = {
+      description?: string
+      properties?: Record<string, SchemaNode>
+      items?: SchemaNode
+    }
+    const client = start()
+    await client.initialize()
+    const tools = result<{ tools: { name: string; title?: string; inputSchema?: SchemaNode }[] }>(
+      await client.request("tools/list"),
+    ).tools
+
+    const missingIn = (where: string, node: SchemaNode): string[] =>
+      Object.entries(node.properties ?? {}).flatMap(([name, child]) => {
+        const path = where === "" ? name : `${where}.${name}`
+        const here = (child.description ?? "").trim() === "" ? [path] : []
+        const nested = missingIn(path, child)
+        const items = child.items === undefined ? [] : missingIn(`${path}[]`, child.items)
+        return [...here, ...nested, ...items]
+      })
+
+    const missing = tools.flatMap((tool) => {
+      expect(tool.title?.trim(), `${tool.name} has no title`).toBeTruthy()
+      return missingIn(tool.name, tool.inputSchema ?? {})
+    })
+    expect(missing).toEqual([])
+  })
+
   it("names the extension tools in the instructions it hands the model", async () => {
     const client = start()
     const response = result<{ instructions?: string }>(await client.initialize())

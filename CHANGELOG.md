@@ -19,8 +19,8 @@ version and its date.
 - **`read_conflicts` now carries what each node left and when**, not just its name, and
   `merge_entities` takes a `dryRun` that reports the observations joined, the relations repointed and
   the name that disappears without writing anything.
-- **The `read_changes` window is also a resource**, `memory://changes{?since}`, subscribable like the
-  graph.
+- **The `read_changes` window is also a resource**, `memory://changes` for the last five minutes and
+  `memory://changes{?since}` for a moment you name, subscribable like the graph.
 - **`noonien stats` and `noonien doctor`.** `stats` counts the graph, the type spread, the largest
   entities and what nobody has confirmed in 90 days (`--json` for a timer); `doctor` verifies the
   store — parse errors, torn lines, orphan relations, shards untouched for a week — and exits 1 on a

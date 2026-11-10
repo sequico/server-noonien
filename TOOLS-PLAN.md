@@ -24,13 +24,12 @@ and an MCP tool for an operator fact would widen the surface an agent reads for 
 ## Ground rules
 
 - **The nine stay the nine, literally.** No unit changes a drop-in tool — not its inputs, not its
-  outputs, not the order of them. The new behaviour always arrives as a tool beside the nine, which
-  is how `update_*`, `merge_entities` and `read_conflicts` already work. A client of the official
-  server calls the nine and never notices the rest exists.
+  outputs, not the order of them. New behaviour arrives as a tool beside the nine, which is how
+  `update_*`, `merge_entities` and `read_conflicts` already work.
 - **No unit introduces an operation type.** `set_observations` is expressed with `observation.add`
   and `observation.delete`, so the codec, the fold and the CRDT are untouched by all six.
-- **Extensions sit beside them**, named so a client of the official server never calls one by
-  accident.
+- **The extensions are named and described so a client of the official server never calls one by
+  accident**, and so an agent that could use one finds it.
 - **Descriptions carry the behaviour**, in the current style: the official sentence where one exists,
   then when to use the tool instead of a sibling and how it fails. Every parameter gets a
   `describe()`.
@@ -279,8 +278,7 @@ structured observation, breaks the entity shape and the drop-in contract.
 - **`instructions`** in `src/server.ts` gains one sentence naming the new read tools and
   `set_observations`, in the voice it already uses: a model calls a tool only if it knows it exists,
   and this is the only way a client learns that `find_nodes` exists beside `search_nodes`. The nine
-  stay the frame. This is the one thing the units cannot do in their own commit, because one
-  sentence covers all of them.
+  stay the frame. One sentence covers every unit, so it lands once, at the end.
 - **Release**: the `Unreleased` heading cut by hand into `1.3.0` with its date, then one
   `workflow_dispatch` run of the Release workflow — never `npm publish` by hand. Then redeploy the
   four nodes on 1.3.0 and verify the version and the listener from `ai`.

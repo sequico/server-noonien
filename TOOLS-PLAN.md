@@ -1,9 +1,10 @@
 # server-noonien — Tool extension plan (1.3.0)
 
-One plan for the additions to the surface an agent and its operator see: one work breakdown, one
-order, one release. This document is **forward-looking** — it exists until 1.3.0 ships, then each
-unit's content moves into `README.md` (tool table, CLI list) and `PLAN.md` (tool surface, decisions)
-and the file is deleted. It never describes history, and never restates what those two already say.
+One plan for the additions to the surface an agent and its operator see, and for the public documents
+that have to describe them: one work breakdown, one order, one release. This document is
+**forward-looking** — it exists until 1.3.0 ships, then each unit's content moves into `README.md`
+(tool table, CLI list) and `PLAN.md` (tool surface, decisions) and the file is deleted. It never
+describes history, and never restates what those two already say.
 
 Usefulness order is the ranking below. **Implementation order is the work breakdown**, because one
 unit waits on a decision and the read-only ones carry no risk. The numbers on the unit headings are
@@ -62,10 +63,11 @@ Everything else in this plan is implementation, decided here and not asked again
 | 4    | 5 `find_duplicates`         | `feat(tools): propose duplicate entities`       | new pure module `src/graph/duplicates.ts` |
 | 5    | 6 `noonien stats`           | `feat(cli): report graph stats`                 | one pass over the ops already read        |
 | 6    | 4 `set_observations`        | `feat(tools): upsert an observation by key`     | **only if D1**                            |
-| 7    | Instructions + read-through | `feat(tools): name the new tools at initialize` | `instructions` string, full re-read       |
-| 8    | Release 1.3.0               | `chore(main): release 1.3.0`                    | Release workflow, then the four nodes     |
+| 7    | Public docs review          | `docs: bring the public surface to 1.3.0`       | every artifact in the phase below         |
+| 8    | Instructions + read-through | `feat(tools): name the new tools at initialize` | `instructions` string, full re-read       |
+| 9    | Release 1.3.0               | `chore(main): release 1.3.0`                    | Release workflow, then the four nodes     |
 
-Steps 1–5 are independent of each other and of D1: 1.3.0 can ship with step 6 absent, and the upsert
+Steps 1–6 are independent of each other and of D1: 1.3.0 can ship with step 6 absent, and the upsert
 follows as 1.3.1. That is the only contingency in this plan.
 
 ---
@@ -270,6 +272,41 @@ types; convergence — the same set on two nodes converges and the later HLC win
 Risk: the one unit that puts a convention into the data. An agent writing those observations by hand
 can leave a key nobody replaces — accepted and stated in the description; the alternative, a
 structured observation, breaks the entity shape and the drop-in contract.
+
+---
+
+## Phase: public docs review
+
+Each unit owns its own README/PLAN/CHANGELOG rows. What no unit owns is the rest of the **public
+surface** — the documents that describe the product as a whole — and that is reviewed once, after the
+last unit and before the release. The pass is a **read, not a search-and-replace**: in every artifact
+below, each sentence that names a tool, counts the tools or names a command is compared with the tree,
+and a claim that cannot be checked in the tree is rewritten or deleted rather than left standing.
+
+| Artifact                                | What it must say after 1.3.0                                                                                                                                                                                                                              | Action           |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `README.md`                             | four new rows in the tool table (five with `set_observations`, when D1 says yes); `stats` in the CLI list; the two searches and how they differ; `read_changes`'s window; the Documentation list with the `TOOLS-PLAN.md` line removed                    | edit             |
+| `PLAN.md`                               | four `read` rows in the tool surface table, `set_observations` as additive + tombstone when D1 says yes; `stats` in the CLI list; _Current state_ naming the new reads; the decision that a better search is a tool beside the nine, never a change to it | edit             |
+| `CHANGELOG.md`                          | one line per user-visible unit under `Unreleased`, cut to `1.3.0` at the release                                                                                                                                                                          | edit             |
+| `CONTRIBUTING.md`                       | the drop-in paragraph lists the extensions (`update_*`, `merge_entities`, `read_conflicts`): it must list the new ones too                                                                                                                                | edit             |
+| `mcpb/manifest.json`                    | `long_description` names the extensions — add these; **never** the version, release-please owns it                                                                                                                                                        | edit description |
+| `AGENTS.md`                             | the compatibility contract names the current extensions — project law, so the owner approves the wording                                                                                                                                                  | edit with owner  |
+| `SCALING.md`                            | the measured read cost and the "page the surface" advice still hold, and the new reads do not contradict them                                                                                                                                             | verify           |
+| `.opencode/skills/noonien-dev/SKILL.md` | the developer skill names the tools and commands it teaches                                                                                                                                                                                               | edit             |
+| `server.json`                           | the registry listing carries no tool names; its version fields are bumped by release-please (`extra-files`)                                                                                                                                               | verify           |
+| `PROTOCOL.md`                           | no wire message, header or route changed — this release adds no daemon surface                                                                                                                                                                            | verify           |
+| `docs/paper.md`                         | **frozen at 1.0.0**: it says "the same nine tools", which stays true; the formatter already skips it                                                                                                                                                      | do not touch     |
+| `TOOLS-PLAN.md`                         | this file, deleted once its content lives in README and PLAN                                                                                                                                                                                              | delete           |
+
+**The check nobody does by accident.** During the gate the push already requires, read the tool names
+from the **built** server — `initialize`, then `tools/list` — and compare them with the README table,
+row by row. A name on one side and not the other is the finding: it catches a tool that was registered
+but not documented, and a row left behind by a rename. No extra gate run: it rides the one the push
+requires.
+
+The registries follow the release rather than this review: npm renders the README from the published
+tarball, the MCP Registry validates and publishes the tagged `server.json`, and Glama re-syncs the
+repository and picks up the new descriptions on its own schedule. Nothing there is edited by hand.
 
 ---
 

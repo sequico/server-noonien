@@ -309,6 +309,55 @@ describe("memory MCP server", () => {
     expect(missing).toEqual([])
   })
 
+  it("pins the nine: their input and output shapes, and the order they answer in", async () => {
+    const client = start()
+    await client.initialize()
+    type Schema = { properties?: Record<string, unknown> }
+    const tools = result<{
+      tools: { name: string; inputSchema?: Schema; outputSchema?: Schema }[]
+    }>(await client.request("tools/list")).tools
+    const byName = new Map(tools.map((tool) => [tool.name, tool]))
+
+    const expected: Record<string, { input: string[]; output: string[] }> = {
+      create_entities: { input: ["entities"], output: ["entities"] },
+      create_relations: { input: ["relations"], output: ["relations"] },
+      add_observations: { input: ["observations"], output: ["results"] },
+      delete_entities: { input: ["entityNames"], output: ["message", "success"] },
+      delete_observations: { input: ["deletions"], output: ["message", "success"] },
+      delete_relations: { input: ["relations"], output: ["message", "success"] },
+      // Paging and the type filter are the optional extras the project added; nothing
+      // else on the nine may move.
+      read_graph: { input: ["limit", "offset"], output: ["entities", "relations"] },
+      search_nodes: {
+        input: ["entityType", "limit", "offset", "query"],
+        output: ["entities", "relations"],
+      },
+      open_nodes: { input: ["names"], output: ["entities", "relations"] },
+    }
+    for (const [name, shape] of Object.entries(expected)) {
+      const tool = byName.get(name)
+      expect(tool, name).toBeDefined()
+      expect(Object.keys(tool?.inputSchema?.properties ?? {}).sort(), name).toEqual(shape.input)
+      expect(Object.keys(tool?.outputSchema?.properties ?? {}).sort(), name).toEqual(shape.output)
+    }
+
+    // Name order, whatever order the writes arrived in.
+    await client.callTool("create_entities", {
+      entities: [
+        { name: "Zoe", entityType: "person", observations: [] },
+        { name: "Ada", entityType: "person", observations: [] },
+      ],
+    })
+    const read = result<{ structuredContent: { entities: { name: string }[] } }>(
+      await client.request("tools/call", { name: "read_graph", arguments: {} }),
+    )
+    expect(read.structuredContent.entities.map((entity) => entity.name)).toEqual(["Ada", "Zoe"])
+    const searched = result<{ structuredContent: { entities: { name: string }[] } }>(
+      await client.request("tools/call", { name: "search_nodes", arguments: { query: "person" } }),
+    )
+    expect(searched.structuredContent.entities.map((entity) => entity.name)).toEqual(["Ada", "Zoe"])
+  })
+
   it("names the extension tools in the instructions it hands the model", async () => {
     const client = start()
     const response = result<{ instructions?: string }>(await client.initialize())

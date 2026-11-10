@@ -279,15 +279,16 @@ structured observation, breaks the entity shape and the drop-in contract.
 
 Each unit owns its own README/PLAN/CHANGELOG rows. What no unit owns is the rest of the **public
 surface** — the documents that describe the product as a whole — and that is reviewed once, after the
-last unit and before the release. The pass is a **read, not a search-and-replace**: in every artifact
-below, each sentence that names a tool, counts the tools or names a command is compared with the tree,
-and a claim that cannot be checked in the tree is rewritten or deleted rather than left standing.
+last feature unit and before the release. The pass is a **read, not a search-and-replace**: in every
+artifact below, each sentence that names a tool, counts the tools or names a command is compared with
+the tree, and a claim that cannot be checked in the tree is rewritten or deleted rather than left
+standing.
 
 | Artifact                                | What it must say after 1.3.0                                                                                                                                                                                                                              | Action           |
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | `README.md`                             | four new rows in the tool table (five with `set_observations`, when D1 says yes); `stats` in the CLI list; the two searches and how they differ; `read_changes`'s window; the Documentation list with the `TOOLS-PLAN.md` line removed                    | edit             |
 | `PLAN.md`                               | four `read` rows in the tool surface table, `set_observations` as additive + tombstone when D1 says yes; `stats` in the CLI list; _Current state_ naming the new reads; the decision that a better search is a tool beside the nine, never a change to it | edit             |
-| `CHANGELOG.md`                          | one line per user-visible unit under `Unreleased`, cut to `1.3.0` at the release                                                                                                                                                                          | edit             |
+| `CHANGELOG.md`                          | `Unreleased` cut into `1.3.0` with its date, the lines already written by the units                                                                                                                                                                       | edit             |
 | `CONTRIBUTING.md`                       | the drop-in paragraph lists the extensions (`update_*`, `merge_entities`, `read_conflicts`): it must list the new ones too                                                                                                                                | edit             |
 | `mcpb/manifest.json`                    | `long_description` names the extensions — add these; **never** the version, release-please owns it                                                                                                                                                        | edit description |
 | `AGENTS.md`                             | the compatibility contract names the current extensions — project law, so the owner approves the wording                                                                                                                                                  | edit with owner  |

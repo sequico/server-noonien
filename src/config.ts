@@ -26,6 +26,8 @@ export interface Config {
   readonly s3: S3Settings | undefined
   /** Operations appended before the online maintenance runs (0 disables). */
   readonly compactAfter: number
+  /** Bytes the own shard may grow by before a maintenance pass (0 disables). */
+  readonly compactBytes: number
   /**
    * True when the operator declares this directory written by this node alone
    * (`NOONIEN_GC`): the promise that makes a physical collection without a daemon
@@ -49,6 +51,9 @@ export interface Config {
  * - `NOONIEN_COMPACT_AFTER` — run the online maintenance after this many appended
  *   operations (default 1000; 0 disables): compact the local shard and, when
  *   collection is allowed, physically drop its tombstones.
+ * - `NOONIEN_COMPACT_BYTES` — run it once the shard this node authors has grown by this
+ *   many bytes since the last pass (default 8388608, 8 MiB; 0 disables). A count of
+ *   operations cannot see size: one observation can weigh as much as a thousand.
  * - `NOONIEN_GC` — declare this directory written by this node alone, which is the
  *   only thing that makes a physical collection **without a daemon** sound (default
  *   off: prune only). It has no effect where a daemon owns the directory — the daemon
@@ -67,12 +72,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       "NOONIEN_COMPACT_AFTER",
       0,
     ),
+    compactBytes: parseInteger(
+      env["NOONIEN_COMPACT_BYTES"],
+      DEFAULT_COMPACT_BYTES,
+      "NOONIEN_COMPACT_BYTES",
+      0,
+    ),
     collect: parseFlag(env["NOONIEN_GC"], false, "NOONIEN_GC"),
   }
 }
 
 /** Operations appended before the local shard is compacted online (0 disables). */
 const DEFAULT_COMPACT_AFTER = 1000
+
+/** Bytes the own shard may grow by before a compaction pass (0 disables). */
+const DEFAULT_COMPACT_BYTES = 8 * 1024 * 1024
 
 /**
  * Expand a leading `~` to the home directory. MCP clients pass `NOONIEN_DIR`
@@ -112,6 +126,7 @@ export function createMemoryGraph(env: NodeJS.ProcessEnv = process.env): MemoryG
   let reported = false
   return new MemoryGraph(log, undefined, {
     compactAfter: config.compactAfter,
+    compactBytes: config.compactBytes,
     collection: async () => {
       const decision = await collectionDecision(config, log)
       if (decision.allowed) {

@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { decodeOperations, decodeShard, encodeOperation } from "../graph/codec.js"
+import { foldOperations } from "../graph/fold.js"
 import { Hlc } from "../graph/hlc.js"
 import type { Operation, OperationDraft } from "../graph/operations.js"
 import {
@@ -41,6 +42,8 @@ export interface OperationLog {
   prune(): Promise<PruneResult>
   /** Rewrite the local shard, also dropping the tombstones the guard clears. */
   gc(guard: CollectionGuard): Promise<CollectionResult>
+  /** The bytes of the shard this node authors; a compaction threshold reads it. */
+  ownShardSize(): Promise<number>
 }
 
 /** The operation counts before and after compacting a shard. */
@@ -79,6 +82,61 @@ export interface CollectionGuard {
 export interface CollectionResult extends CompactionResult {
   /** Elements whose tombstone was kept because a peer could still contest them. */
   readonly frozen: number
+}
+
+/** What a verification pass found; nothing here is fixed by the pass itself. */
+export interface DoctorReport {
+  readonly shards: number
+  readonly operations: number
+  /** Lines the codec rejected. */
+  readonly parseErrors: number
+  /** Files whose last line has no newline: a write cut short. */
+  readonly tornLines: number
+  /** Relations whose endpoint is not in the folded graph. */
+  readonly orphanRelations: number
+  /** Shards nobody has touched for longer than the window; informational. */
+  readonly unmovedShards: readonly string[]
+  readonly foldMilliseconds: number
+}
+
+/** How long a shard may go untouched before a verification pass mentions it. */
+const UNMOVED_AFTER_MS = 7 * 24 * 60 * 60_000
+
+/** One shard's lines, decoded, with what could not be decoded and whether it was torn. */
+function scanShard(
+  text: string,
+  name: string,
+): { ops: Operation[]; parseErrors: number; torn: boolean } {
+  const torn = text.length > 0 && !text.endsWith("\n")
+  const lines = text.split("\n")
+  const ops: Operation[] = []
+  let parseErrors = 0
+  for (const [index, line] of lines.entries()) {
+    if (line.trim() === "") {
+      continue
+    }
+    // The last line of a torn file is already reported as torn, not as garbage.
+    if (torn && index === lines.length - 1) {
+      continue
+    }
+    try {
+      ops.push(...decodeOperations(line, name))
+    } catch {
+      parseErrors += 1
+    }
+  }
+  return { ops, parseErrors, torn }
+}
+
+/**
+ * The write time a backend fingerprint carries, when it carries one. A file backend's
+ * token starts with the modification time in milliseconds; an object store's is an ETag,
+ * which says nothing about age — so an unknown token is simply not judged.
+ */
+function tokenTime(token: string): number | undefined {
+  const [first] = token.split(":")
+  const millis = first === undefined ? Number.NaN : Number(first)
+  return Number.isFinite(millis) && millis > 0 ? millis : undefined
 }
 
 /** The own-shard sequence high-water mark seen during a read. */
@@ -357,6 +415,57 @@ export class ShardLog implements OperationLog {
   /** The shard files the backend currently exposes. */
   async shards(): Promise<string[]> {
     return this.backend.list()
+  }
+
+  /** The bytes of the shard this node authors; zero when it does not exist yet. */
+  async ownShardSize(): Promise<number> {
+    const info = await this.backend.stat(this.shardName)
+    return info?.size ?? 0
+  }
+
+  /**
+   * Walk every shard line by line and report what the store really holds: a line the
+   * codec rejects, a file whose last line has no newline (a write cut short), a relation
+   * whose endpoint is gone, and a shard nobody has touched in a week. Read-only: a repair
+   * is a different decision, and a doctor that rewrites is a doctor that can destroy.
+   */
+  async inspect(): Promise<DoctorReport> {
+    const names = await this.backend.list()
+    const ops: Operation[] = []
+    let parseErrors = 0
+    let tornLines = 0
+    const unmovedShards: string[] = []
+    const cutoff = Date.now() - UNMOVED_AFTER_MS
+    for (const name of names) {
+      const text = (await this.backend.read(name)) ?? ""
+      const scanned = scanShard(text, name)
+      ops.push(...scanned.ops)
+      parseErrors += scanned.parseErrors
+      if (scanned.torn) {
+        tornLines += 1
+      }
+      const stat = await this.backend.stat(name)
+      const touched = stat === undefined ? undefined : tokenTime(stat.token)
+      if (touched !== undefined && touched < cutoff) {
+        unmovedShards.push(name)
+      }
+    }
+    const start = performance.now()
+    const graph = foldOperations(ops)
+    const foldMilliseconds = Math.round(performance.now() - start)
+    const present = new Set(graph.entities.map((entity) => entity.name))
+    const orphanRelations = graph.relations.filter(
+      (relation) => !present.has(relation.from) || !present.has(relation.to),
+    ).length
+    return {
+      shards: names.length,
+      operations: ops.length,
+      parseErrors,
+      tornLines,
+      orphanRelations,
+      unmovedShards,
+      foldMilliseconds,
+    }
   }
 
   async read(): Promise<Operation[]> {

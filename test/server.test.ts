@@ -44,6 +44,13 @@ const EXTENSION_TOOLS = [
   "update_relations",
   "merge_entities",
   "read_conflicts",
+  "read_changes",
+  "find_nodes",
+  "expand_nodes",
+  "resolve_conflict",
+  "find_duplicates",
+  "read_history",
+  "set_observations",
 ]
 
 /** The tool names the README's Tools table lists, so the two cannot drift apart. */
@@ -239,7 +246,17 @@ describe("memory MCP server", () => {
 
     const byName = new Map(tools.map((tool) => [tool.name, tool]))
     const expected: Record<string, { readOnlyHint: boolean; destructiveHint: boolean }> = {}
-    for (const name of ["read_graph", "search_nodes", "open_nodes", "read_conflicts"]) {
+    for (const name of [
+      "read_graph",
+      "search_nodes",
+      "open_nodes",
+      "read_conflicts",
+      "read_changes",
+      "find_nodes",
+      "expand_nodes",
+      "find_duplicates",
+      "read_history",
+    ]) {
       expected[name] = { readOnlyHint: true, destructiveHint: false }
     }
     for (const name of ["create_entities", "create_relations", "add_observations"]) {
@@ -253,6 +270,8 @@ describe("memory MCP server", () => {
       "update_observations",
       "update_relations",
       "merge_entities",
+      "resolve_conflict",
+      "set_observations",
     ]) {
       expected[name] = { readOnlyHint: false, destructiveHint: true }
     }
@@ -271,6 +290,13 @@ describe("memory MCP server", () => {
       "update_relations",
       "merge_entities",
       "read_conflicts",
+      "read_changes",
+      "find_nodes",
+      "expand_nodes",
+      "resolve_conflict",
+      "find_duplicates",
+      "read_history",
+      "set_observations",
       "limit",
     ]) {
       expect(response.instructions, name).toContain(name)
@@ -307,7 +333,19 @@ describe("memory MCP server", () => {
     expect(
       (await client.callTool("merge_entities", { merges: [{ from: "Ada", into: "Ada Lovelace" }] }))
         .structuredContent,
-    ).toEqual({ results: [{ from: "Ada", into: "Ada Lovelace", merged: true }] })
+    ).toEqual({
+      results: [
+        {
+          from: "Ada",
+          into: "Ada Lovelace",
+          merged: true,
+          observationsJoined: 1,
+          relationsRepointed: 0,
+          removedName: "Ada",
+          applied: true,
+        },
+      ],
+    })
     expect((await client.callTool("read_graph")).structuredContent).toEqual({
       entities: [{ name: "Ada Lovelace", entityType: "person", observations: ["mathematics"] }],
       relations: [],

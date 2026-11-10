@@ -3,13 +3,16 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import type { Implementation } from "@modelcontextprotocol/server"
-import { McpServer } from "@modelcontextprotocol/server"
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/server"
 import { z } from "zod"
 import type { MemoryGraph } from "./graph/graph.js"
 import { EntitySchema, KnowledgeGraphSchema, RelationSchema } from "./graph/types.js"
 
 /** The resource URI the official memory server exposes the whole graph at. */
 export const GRAPH_RESOURCE_URI = "memory://knowledge-graph"
+
+/** The resource template that answers the same window as `read_changes`. */
+export const CHANGES_RESOURCE_URI = "memory://changes"
 
 const annotationsRead = {
   readOnlyHint: true,
@@ -290,7 +293,7 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     {
       title: "Merge Entities",
       description:
-        "Prefer this to deleting one entity and re-adding its observations and relations to another: merge an entity into another, unioning their observations and repointing its relations. The target keeps its name; the absorbed entity is deleted.",
+        "Prefer this to deleting one entity and re-adding its observations and relations to another: merge an entity into another, unioning their observations and repointing its relations. The target keeps its name; the absorbed entity is deleted. It cannot be undone, so pass dryRun first to see the observations joined, the relations repointed and the name that disappears; find_duplicates proposes pairs that look like the same thing.",
       inputSchema: z.object({
         merges: z
           .array(
@@ -302,6 +305,12 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
           .describe(
             "One entry per merge: the entity to absorb and delete, and the entity it merges into",
           ),
+        dryRun: z
+          .boolean()
+          .optional()
+          .describe(
+            "Report what the merges would change, and write nothing; omit for a real merge",
+          ),
       }),
       outputSchema: z.object({
         results: z.array(
@@ -310,14 +319,20 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
             into: z.string(),
             merged: z.boolean(),
             reason: z.string().optional(),
+            observationsJoined: z.number().int().optional(),
+            relationsRepointed: z.number().int().optional(),
+            removedName: z.string().optional(),
+            applied: z.boolean().optional(),
           }),
         ),
       }),
       annotations: annotationsUpdate,
     },
-    async ({ merges }) => {
-      const { results } = await graph.mergeEntities(merges)
-      onMutate()
+    async ({ merges, dryRun }) => {
+      const { results } = await graph.mergeEntities(merges, { dryRun })
+      if (dryRun !== true) {
+        onMutate()
+      }
       return {
         content: [textResult(JSON.stringify(results, null, 2))],
         structuredContent: { results },
@@ -417,7 +432,7 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     {
       title: "Read Graph",
       description:
-        "Read the knowledge graph, or a page of it: the optional limit and offset take a slice of the entities in name order. Use it for the whole graph; for a query use search_nodes, for names you already know use open_nodes, and for the elements more than one node wrote use read_conflicts. A page carries the relations that touch its entities.",
+        "Read the knowledge graph, or a page of it: the optional limit and offset take a slice of the entities in name order. Use it for the whole graph; for a query use search_nodes, for names you already know use open_nodes, and for the elements more than one node wrote use read_conflicts. A page carries the relations that touch its entities. To read only what changed since your last visit, use read_changes.",
       inputSchema: z.object({
         limit: z
           .number()
@@ -449,7 +464,7 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     {
       title: "Search Nodes",
       description:
-        "Search for nodes in the knowledge graph based on a query. The query is matched against entity names, types and observation content; entityType narrows to one exact type, and limit/offset page the matches in name order. For the whole graph use read_graph, and for names you already know use open_nodes.",
+        "Search for nodes in the knowledge graph based on a query. The query is matched against entity names, types and observation content; entityType narrows to one exact type, and limit/offset page the matches in name order. For the whole graph use read_graph, and for names you already know use open_nodes. For a search written the way a query is spoken, use find_nodes: it matches whole words and ranks the results.",
       inputSchema: z.object({
         query: z
           .string()
@@ -512,13 +527,19 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
     {
       title: "Read Conflicts",
       description:
-        "Call this when a write may have been superseded by another machine, or before trusting an edit: it lists the elements more than one node has written, with their authors, so a last-writer-wins resolution is visible instead of silent",
+        "Call this when a write may have been superseded by another machine, or before trusting an edit: it lists the elements more than one node has written, with what each node left and when it last touched it, so a last-writer-wins resolution is visible instead of silent. Settle a contested element with resolve_conflict.",
       inputSchema: z.object({}),
       outputSchema: z.object({
         conflicts: z.array(
           z.object({
             element: z.string(),
-            authors: z.array(z.string()),
+            authors: z.array(
+              z.object({
+                node: z.string(),
+                ts: z.string(),
+                value: z.string(),
+              }),
+            ),
             operations: z.number().int(),
           }),
         ),
@@ -530,6 +551,313 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
       return {
         content: [textResult(JSON.stringify(report, null, 2))],
         structuredContent: report,
+      }
+    },
+  )
+
+  server.registerTool(
+    "read_changes",
+    {
+      title: "Read Changes",
+      description:
+        "Read only what changed in a window you choose: the entities touched in it, as they are now, and the names deleted in it. Use it instead of read_graph when you are coming back to a memory you already know — the whole graph for two changed entities costs the context you came to use. The window reaches five minutes further back than you ask, so a change written by a peer with a slightly lagging clock is not lost, and reading the same window twice is harmless. It also returns until, the moment it stopped at, in this node's clock: pass that back as since and the next read continues from there.",
+      inputSchema: z.object({
+        since: z
+          .string()
+          .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+            message: "must be an ISO-8601 timestamp",
+          })
+          .optional()
+          .describe(
+            "The ISO-8601 moment to read after; omit it for the last five minutes, or pass the moment a previous call returned to continue where that call stopped",
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("The most entities to return; omit for all of them"),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("How many entities to skip before the page; omit for none"),
+      }),
+      outputSchema: KnowledgeGraphSchema.extend({
+        since: z.string(),
+        until: z.string(),
+        deleted: z.array(z.string()),
+      }),
+      annotations: annotationsRead,
+    },
+    async ({ since, limit, offset }) => {
+      const value = await graph.changes(since === undefined ? undefined : new Date(since), {
+        limit,
+        offset,
+      })
+      return {
+        content: [textResult(JSON.stringify(value, null, 2))],
+        structuredContent: value,
+      }
+    },
+  )
+
+  server.registerTool(
+    "find_nodes",
+    {
+      title: "Find Nodes",
+      description:
+        "Search the graph the way a query is written, not as a literal string: every word must match, a word matches the beginning of a longer one, and the best matches come first. Use it instead of search_nodes when the query is more than one word, or when a word may be spelled differently — ports for port. search_nodes is the literal-substring search and stays for exactly that. A word that matches nothing makes the result empty rather than failing the call.",
+      inputSchema: z.object({
+        query: z.string().max(2048).describe("The words to look for"),
+        entityType: z
+          .string()
+          .optional()
+          .describe("Keep only entities of exactly this type; omit to match every type"),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("The most entities to return; omit for all of them"),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("How many ranked results to skip before the page; omit for none"),
+      }),
+      outputSchema: KnowledgeGraphSchema,
+      annotations: annotationsRead,
+    },
+    async ({ query, entityType, limit, offset }) => {
+      const value = await graph.findNodes(query, { entityType, limit, offset })
+      return {
+        content: [textResult(JSON.stringify(value, null, 2))],
+        structuredContent: value,
+      }
+    },
+  )
+
+  server.registerTool(
+    "expand_nodes",
+    {
+      title: "Expand Nodes",
+      description:
+        "Walk out from the entities you name: every entity within depth hops, with the relations that touch them. Use it instead of read_graph to assemble the context around a topic, and instead of open_nodes when the neighbours' content matters as much as the entity you started from. The walk ignores direction, stops on cycles, and skips names that do not exist rather than failing. When limit binds, truncated is true and the farthest entities are the ones left out.",
+      inputSchema: z.object({
+        names: z.array(z.string()).describe("The entities to start from"),
+        depth: z
+          .number()
+          .int()
+          .min(1)
+          .max(5)
+          .optional()
+          .describe("How many hops to walk, 1 by default and at most 5"),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("The most entities to return, 200 by default"),
+      }),
+      outputSchema: KnowledgeGraphSchema.extend({ truncated: z.boolean() }),
+      annotations: annotationsRead,
+    },
+    async ({ names, depth, limit }) => {
+      const value = await graph.expandNodes(names, { depth, limit })
+      return {
+        content: [textResult(JSON.stringify(value, null, 2))],
+        structuredContent: value,
+      }
+    },
+  )
+
+  server.registerTool(
+    "resolve_conflict",
+    {
+      title: "Resolve Conflict",
+      description:
+        "Settle an element that more than one machine has written: keep it or drop it with a stamp newer than anything in the log, so the decision wins on every node as the change propagates. Use it after read_conflicts named the element and you have decided how it should stand — re-creating it with the existing tools is not enough, because a write that already exists is skipped, and deleting what is already tombstoned changes nothing. An element that already stands as you ask is left untouched and reported as unchanged, because every write is durable history.",
+      inputSchema: z.object({
+        elements: z
+          .array(
+            z.object({
+              entityName: z
+                .string()
+                .optional()
+                .describe("The entity that holds an observation; give it with content"),
+              content: z
+                .string()
+                .optional()
+                .describe("The observation content; give it with entityName"),
+              from: z
+                .string()
+                .optional()
+                .describe("The name where a relation starts; give it with to and relationType"),
+              to: z
+                .string()
+                .optional()
+                .describe("The name where a relation ends; give it with from and relationType"),
+              relationType: z
+                .string()
+                .optional()
+                .describe("The relation type; give it with from and to"),
+              keep: z.boolean().describe("True to make the element stand, false to make it go"),
+            }),
+          )
+          .describe("One entry per element: an observation or a relation, and whether it stands"),
+      }),
+      outputSchema: z.object({
+        results: z.array(
+          z.object({
+            element: z.string(),
+            keep: z.boolean(),
+            changed: z.boolean(),
+          }),
+        ),
+      }),
+      annotations: annotationsUpdate,
+    },
+    async ({ elements }) => {
+      const { results } = await graph.resolveConflicts(elements)
+      onMutate()
+      return {
+        content: [textResult(JSON.stringify(results, null, 2))],
+        structuredContent: { results },
+      }
+    },
+  )
+
+  server.registerTool(
+    "find_duplicates",
+    {
+      title: "Find Duplicates",
+      description:
+        'Propose pairs of entities that may be the same thing, so merge_entities can be used on a pair you would not have noticed. With by: "name" the names are compared after case, spacing, punctuation and a known suffix such as .service are normalised, and overlapping observations raise the score; with by: "content" the observations are compared instead, which is how one fact written twice under two names is found. It is read-only. A score is a hint, not a verdict: read both entities before merging them.',
+      inputSchema: z.object({
+        by: z
+          .enum(["name", "content"])
+          .optional()
+          .describe("What to compare: name (default) or content"),
+        threshold: z
+          .number()
+          .min(0)
+          .max(1)
+          .optional()
+          .describe("The lowest score to report, 0.75 by default"),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("The most pairs to return, 20 by default, best first"),
+      }),
+      outputSchema: z.object({
+        pairs: z.array(
+          z.object({
+            a: z.string(),
+            b: z.string(),
+            score: z.number(),
+            reasons: z.array(z.string()),
+          }),
+        ),
+      }),
+      annotations: annotationsRead,
+    },
+    async ({ by, threshold, limit }) => {
+      const value = await graph.findDuplicates({ by, threshold, limit })
+      return {
+        content: [textResult(JSON.stringify(value, null, 2))],
+        structuredContent: value,
+      }
+    },
+  )
+
+  server.registerTool(
+    "read_history",
+    {
+      title: "Read History",
+      description:
+        "Show what wrote an entity and when: the operations that touched it, newest first, with their timestamp, node and kind. Use it to tell a fact confirmed yesterday from one nobody has touched in months, which no other tool answers — read_conflicts covers only contested elements, and the graph itself carries no dates. For the current state use open_nodes; for what changed in a window use read_changes.",
+      inputSchema: z.object({
+        entityNames: z
+          .array(z.string())
+          .describe("The entities to trace; a relation counts under both of its endpoints"),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(500)
+          .optional()
+          .describe("The most operations to return, 50 by default and at most 500"),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("How many operations to skip before the page; omit for none"),
+      }),
+      outputSchema: z.object({
+        entries: z.array(
+          z.object({
+            entityName: z.string(),
+            ts: z.string(),
+            node: z.string(),
+            kind: z.string(),
+            detail: z.string(),
+          }),
+        ),
+      }),
+      annotations: annotationsRead,
+    },
+    async ({ entityNames, limit, offset }) => {
+      const value = await graph.history({ entityNames, limit, offset })
+      return {
+        content: [textResult(JSON.stringify(value, null, 2))],
+        structuredContent: value,
+      }
+    },
+  )
+
+  server.registerTool(
+    "set_observations",
+    {
+      title: "Set Observations",
+      description:
+        "Keep one fact current: write key: value on an entity, replacing every observation that key already holds, so a drifted twin cannot survive. Use it instead of update_observations when the value changes over time — a version, a status — and you should not have to remember its previous text. An observation belongs to a key when it is exactly the key or starts with the key, a colon and a space, and a key may not itself contain a colon followed by a space. A missing entity fails as add_observations does: create it with create_entities first.",
+      inputSchema: z.object({
+        entries: z
+          .array(
+            z.object({
+              entityName: z.string().describe("The entity that holds the fact"),
+              key: z
+                .string()
+                .describe("The name of the fact, matched at the start of an observation"),
+              value: z.string().describe("What the fact is now"),
+            }),
+          )
+          .describe("One entry per fact"),
+      }),
+      outputSchema: z.object({
+        results: z.array(
+          z.object({
+            entityName: z.string(),
+            key: z.string(),
+            content: z.string(),
+            action: z.enum(["added", "replaced"]),
+          }),
+        ),
+      }),
+      annotations: annotationsUpdate,
+    },
+    async ({ entries }) => {
+      const { results } = await graph.setObservations(entries)
+      onMutate()
+      return {
+        content: [textResult(JSON.stringify(results, null, 2))],
+        structuredContent: { results },
       }
     },
   )
@@ -555,6 +883,30 @@ function registerMemoryTools(server: McpServer, graph: MemoryGraph, onMutate: ()
       }
     },
   )
+
+  server.registerResource(
+    "changes",
+    new ResourceTemplate("memory://changes{?since}", { list: undefined }),
+    {
+      title: "Changes",
+      description:
+        "What moved in a window: the same body as read_changes, the last five minutes when since is absent",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      const since = uri.searchParams.get("since")
+      const value = await graph.changes(since === null ? undefined : new Date(since))
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text: JSON.stringify(value, null, 2),
+          },
+        ],
+      }
+    },
+  )
 }
 
 /** The first modern (2026-07-28) protocol revision; revisions are ISO dates. */
@@ -567,7 +919,7 @@ function isModernEra(server: McpServer): boolean {
 }
 
 /**
- * Let clients subscribe to the knowledge-graph resource and return a notifier
+ * Let clients subscribe to the graph and the changes resources, and return a notifier
  * that fans `notifications/resources/updated` out on every mutation.
  *
  * The two protocol eras deliver an update differently. The 2025 era has no
@@ -580,6 +932,7 @@ function isModernEra(server: McpServer): boolean {
  */
 function registerGraphSubscriptions(server: McpServer): () => void {
   const subscribers = new Set<string>()
+  const uris = [GRAPH_RESOURCE_URI, CHANGES_RESOURCE_URI]
   server.server.registerCapabilities({ resources: { subscribe: true } })
   server.server.setRequestHandler("resources/subscribe", (request) => {
     subscribers.add(request.params.uri)
@@ -590,15 +943,17 @@ function registerGraphSubscriptions(server: McpServer): () => void {
     return {}
   })
   return () => {
-    // The only resource is the graph, so a legacy client is notified only when it
-    // subscribed to that URI — never because it subscribed to some other one. The
-    // modern era lets the SDK filter by the client's `subscriptions/listen` stream.
-    if (!isModernEra(server) && !subscribers.has(GRAPH_RESOURCE_URI)) {
-      return
+    // A legacy client is notified only for the resource it subscribed to — never
+    // because it subscribed to some other one. The modern era lets the SDK filter
+    // by the client's `subscriptions/listen` stream.
+    for (const uri of uris) {
+      if (!isModernEra(server) && !subscribers.has(uri)) {
+        continue
+      }
+      // A notification is best effort: a closed or failing transport must not
+      // surface as an unhandled rejection and crash the server process.
+      void server.server.sendResourceUpdated({ uri }).catch(() => undefined)
     }
-    // A notification is best effort: a closed or failing transport must not
-    // surface as an unhandled rejection and crash the server process.
-    void server.server.sendResourceUpdated({ uri: GRAPH_RESOURCE_URI }).catch(() => undefined)
   }
 }
 
@@ -614,10 +969,16 @@ const INSTRUCTIONS =
   "tools behave as in @modelcontextprotocol/server-memory. To change what already exists, do " +
   "not compose delete + create: rename an entity or change its type with update_entities, " +
   "replace an observation content with update_observations, change a relation's type or " +
-  "endpoints with update_relations, and combine two entities with merge_entities. When a " +
-  "write may have been superseded by another machine, read_conflicts lists the elements more " +
-  "than one node wrote. For a large graph, page read_graph and search_nodes with " +
-  "limit/offset, and filter search_nodes by entityType."
+  "endpoints with update_relations, and combine two entities with merge_entities, which takes " +
+  "a dryRun when you want to see the bill first. For a large graph, page read_graph and " +
+  "search_nodes with limit/offset, and filter search_nodes by entityType. " +
+  "find_nodes searches the way a query is written — every word must match, results are " +
+  "ranked — while search_nodes is the literal substring. read_changes reads what moved in a " +
+  "window instead of the whole graph, expand_nodes walks a neighbourhood out from the entities " +
+  "you name, and find_duplicates proposes pairs that look like the same thing. To settle what " +
+  "two machines wrote, read_conflicts lists it with the values and the times and " +
+  "resolve_conflict decides it; read_history says who wrote an entity and when; " +
+  "set_observations keeps a key: value fact current."
 
 /** Build a fully wired memory MCP server. */
 export function createMemoryServer(graph: MemoryGraph, serverInfo: Implementation): McpServer {

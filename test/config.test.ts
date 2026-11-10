@@ -108,6 +108,8 @@ describe("createMemoryGraph collection", () => {
   async function createAndDelete(graph: ReturnType<typeof createMemoryGraph>): Promise<void> {
     await graph.createEntities([{ name: "E", entityType: "t", observations: [] }])
     await graph.deleteEntities(["E"])
+    // Maintenance is off the write path now: the timer asks for it, and so does this.
+    await graph.maintain()
   }
 
   afterEach(async () => {

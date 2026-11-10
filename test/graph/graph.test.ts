@@ -51,6 +51,10 @@ class FixedLog implements OperationLog {
   gc(): Promise<CollectionResult> {
     return Promise.resolve({ before: 0, after: 0, frozen: 0 })
   }
+
+  ownShardSize(): Promise<number> {
+    return Promise.resolve(0)
+  }
 }
 
 async function seed(graph: MemoryGraph): Promise<void> {
@@ -391,7 +395,17 @@ describe("MemoryGraph", () => {
       { from: "Bob", to: "Ada", relationType: "knows" },
     ])
     expect(await graph.mergeEntities([{ from: "Ada", into: "Ada Lovelace" }])).toEqual({
-      results: [{ from: "Ada", into: "Ada Lovelace", merged: true }],
+      results: [
+        {
+          from: "Ada",
+          into: "Ada Lovelace",
+          merged: true,
+          observationsJoined: 0,
+          relationsRepointed: 2,
+          removedName: "Ada",
+          applied: true,
+        },
+      ],
     })
     // The union does not duplicate the content the target already held, and both
     // directions of the repointing are followed.
@@ -423,9 +437,16 @@ describe("MemoryGraph", () => {
           into: "Ada",
           merged: false,
           reason: "an entity cannot be merged into itself",
+          applied: false,
         },
-        { from: "Ghost", into: "Ada", merged: false, reason: "entity not found" },
-        { from: "Ada", into: "Ghost", merged: false, reason: 'entity "Ghost" not found' },
+        { from: "Ghost", into: "Ada", merged: false, reason: "entity not found", applied: false },
+        {
+          from: "Ada",
+          into: "Ghost",
+          merged: false,
+          reason: 'entity "Ghost" not found',
+          applied: false,
+        },
       ],
     })
     expect((await graph.readGraph()).entities.map((entity) => entity.name)).toEqual(["Ada", "Bob"])
@@ -509,7 +530,16 @@ describe("MemoryGraph", () => {
       await backendA.append("n2.jsonl", shard)
     }
     expect(await one.conflicts()).toEqual({
-      conflicts: [{ element: 'entity "Ada"', authors: ["n1", "n2"], operations: 2 }],
+      conflicts: [
+        {
+          element: 'entity "Ada"',
+          authors: [
+            { node: "n1", ts: expect.any(String), value: "person" },
+            { node: "n2", ts: expect.any(String), value: "scientist" },
+          ],
+          operations: 2,
+        },
+      ],
     })
   })
 
@@ -534,7 +564,10 @@ describe("MemoryGraph", () => {
     const { conflicts } = await one.conflicts()
     expect(conflicts).toContainEqual({
       element: 'observation "Ada" "logic"',
-      authors: ["n1", "n2"],
+      authors: [
+        { node: "n1", ts: expect.any(String), value: "logic" },
+        { node: "n2", ts: expect.any(String), value: "(deleted)" },
+      ],
       operations: 3,
     })
   })
@@ -593,11 +626,12 @@ describe("MemoryGraph", () => {
     ])
   })
 
-  it("compacts the local shard online once the threshold is reached", async () => {
+  it("compacts the local shard when maintenance is asked for and the threshold is reached", async () => {
     const backend = new MemoryBackend()
     const graph = new MemoryGraph(new ShardLog(backend, "node"), undefined, { compactAfter: 2 })
     await graph.createEntities([{ name: "A", entityType: "t", observations: ["x"] }])
     await graph.createEntities([{ name: "B", entityType: "t", observations: [] }])
+    await graph.maintain()
     const own = decodeOperations((await backend.read("node.jsonl")) ?? "")
     expect(own.some((op) => op.type === "shard.compact")).toBe(true)
     expect(await graph.readGraph()).toEqual({
@@ -609,7 +643,7 @@ describe("MemoryGraph", () => {
     })
   })
 
-  it("collects tombstones online when the collection guard allows it", async () => {
+  it("collects tombstones when maintenance is asked for and the guard allows it", async () => {
     const backend = new MemoryBackend()
     const graph = new MemoryGraph(new ShardLog(backend, "node"), undefined, {
       compactAfter: 2,
@@ -618,13 +652,14 @@ describe("MemoryGraph", () => {
     })
     await graph.createEntities([{ name: "A", entityType: "t", observations: [] }])
     await graph.deleteEntities(["A"])
+    await graph.maintain()
     const own = decodeOperations((await backend.read("node.jsonl")) ?? "")
     // The create is shadowed and the tombstone is collectable: only the metadata stays.
     expect(own.map((op) => op.type)).toEqual(["shard.compact"])
     expect(await graph.readGraph()).toEqual({ entities: [], relations: [] })
   })
 
-  it("only prunes shadows online when no collection guard is available", async () => {
+  it("only prunes shadows when no collection guard is available", async () => {
     const backend = new MemoryBackend()
     const graph = new MemoryGraph(new ShardLog(backend, "node"), undefined, {
       compactAfter: 2,
@@ -632,6 +667,7 @@ describe("MemoryGraph", () => {
     })
     await graph.createEntities([{ name: "A", entityType: "t", observations: [] }])
     await graph.deleteEntities(["A"])
+    await graph.maintain()
     const own = decodeOperations((await backend.read("node.jsonl")) ?? "")
     expect(own.map((op) => op.type)).toEqual(["entity.delete", "shard.compact"])
   })
